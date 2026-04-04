@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter Generator · Vierbeinerglück</title>
+<title>Newsletter Generator V3 · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -308,6 +308,33 @@ Antworte NUR mit diesem JSON (kein Markdown davor/danach):
     const txt=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
     history.push({role:'assistant',content:txt});
     proposals=JSON.parse(txt).proposals;
+
+    // Validierung: Prüfe ob Produkte wirklich existieren
+    const validProducts = buildCtx().split('\n').map(l=>l.split('|')[0].replace('-','').trim().toLowerCase());
+    proposals = proposals.map(p=>{
+      const anchorValid = validProducts.some(v=>v.includes(p.anchor_product.toLowerCase().substring(0,10)));
+      const bundleValid = validProducts.some(v=>v.includes(p.bundle_product.toLowerCase().substring(0,10)));
+      // Finde echte Produkte aus Shopify
+      const realProducts = products.filter(pr=>{
+        const t=pr.title.toLowerCase();
+        const ex=['set','messe','duo','trio','kombi','bundle','ebook','buch bundle'];
+        return !ex.some(x=>t.includes(x));
+      });
+      if(!anchorValid && realProducts.length>0){
+        const rp = realProducts[p.id % realProducts.length];
+        p.anchor_product = rp.title;
+        p.anchor_price = rp.variants[0].price;
+        p.anchor_url = SHOP + rp.handle;
+      }
+      if(!bundleValid && realProducts.length>1){
+        const rp = realProducts[(p.id+1) % realProducts.length];
+        p.bundle_product = rp.title;
+        p.bundle_price = rp.variants[0].price;
+        p.bundle_url = SHOP + rp.handle;
+      }
+      return p;
+    });
+
     proposals.forEach(p=>accepted.add(p.id));
     renderProposals();
   }catch(e){
