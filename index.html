@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newsletter Generator · Vierbeinerglück</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f2318;
+  --bg2: #1a3a28;
+  --bg3: #152d1f;
+  --green: #2d6a4f;
+  --bright: #52b788;
+  --gold: #c9a84c;
+  --gold2: #e8c97a;
+  --cream: #f5f0e8;
+  --muted: #7a9a80;
+  --border: rgba(201,168,76,0.18);
+  --danger: #c0392b;
+  --r: 4px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:var(--bg);color:var(--cream);font-family:'Jost',sans-serif;font-weight:300}
+a{color:var(--gold);text-decoration:none}
+
+header{
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  padding:1rem 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--gold);letter-spacing:.04em}
+.logo em{color:var(--cream);font-style:normal;font-weight:400}
+#kwBadge{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:rgba(201,168,76,0.08);border:1px solid var(--border);padding:3px 12px;border-radius:20px}
+
+.steps{display:flex;background:var(--bg3);border-bottom:1px solid var(--border)}
+.step-tab{flex:1;padding:.6rem .5rem;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:center;border-bottom:2px solid transparent;transition:all .3s}
+.step-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.step-tab.done{color:var(--bright);border-bottom-color:var(--bright)}
+
+main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
+
+.panel{display:none}
+.panel.active{display:block;animation:fadein .25s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.season-box{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:1rem 1.25rem;margin-bottom:1.5rem;
+}
+.season-box h3{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:500;color:var(--gold);margin-bottom:.25rem}
+.season-box p{font-size:13px;color:var(--muted);line-height:1.5}
+
+.card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.25rem;margin-bottom:.75rem;transition:border-color .2s;
+}
+.card.accepted{border-left:3px solid var(--bright)}
+.card.rejected{border-left:3px solid var(--danger);opacity:.4}
+
+.card-title{font-family:'Cormorant Garamond',serif;font-size:1.05rem;font-weight:500;color:var(--cream);margin-bottom:.35rem}
+.card-sub{font-size:12px;color:var(--muted);margin-bottom:.5rem}
+.card-teaser{font-size:13px;color:var(--cream);line-height:1.6;margin-bottom:.5rem}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.5rem}
+.chip{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+.chip.gold{border-color:rgba(201,168,76,0.4);color:var(--gold2)}
+
+.nl-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(201,168,76,0.12);font-size:11px;color:var(--gold);margin-right:6px;flex-shrink:0}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 18px;border-radius:var(--r);
+  border:1px solid var(--border);background:transparent;
+  color:var(--cream);font-size:13px;font-family:'Jost',sans-serif;font-weight:400;
+  cursor:pointer;letter-spacing:.03em;transition:all .15s;
+}
+.btn:hover{background:rgba(255,255,255,0.05);border-color:rgba(201,168,76,0.4)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-primary{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:500}
+.btn-primary:hover{background:var(--gold2);border-color:var(--gold2)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-accept{border-color:rgba(82,183,136,0.5);color:var(--bright)}
+.btn-accept:hover{background:rgba(82,183,136,0.08)}
+.btn-reject{border-color:rgba(192,57,43,0.5);color:#e74c3c}
+.btn-reject:hover{background:rgba(192,57,43,0.08)}
+.btn-publish{background:var(--green);color:var(--cream);border-color:var(--green)}
+.btn-publish:hover{background:#3a8a65}
+.btn-publish:disabled{opacity:.35;cursor:not-allowed}
+
+.actions{display:flex;gap:8px;margin-top:1rem;flex-wrap:wrap;align-items:center}
+
+textarea{
+  width:100%;padding:10px 14px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  color:var(--cream);font-family:'Jost',sans-serif;font-size:14px;font-weight:300;
+  resize:vertical;min-height:80px;line-height:1.6;
+}
+textarea:focus{outline:none;border-color:rgba(201,168,76,0.5)}
+textarea::placeholder{color:var(--muted)}
+
+.loading{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:14px;padding:2rem 0}
+.spinner{width:18px;height:18px;border:2px solid rgba(201,168,76,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.preview-wrap{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:1rem;background:#fff}
+.preview-wrap iframe{width:100%;border:none;height:600px;display:block}
+
+.tabs-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:.75rem}
+
+.status{font-size:13px;padding:10px 14px;border-radius:var(--r);margin-bottom:.75rem;border:1px solid}
+.s-ok{background:rgba(82,183,136,0.1);color:var(--bright);border-color:rgba(82,183,136,0.3)}
+.s-err{background:rgba(192,57,43,0.1);color:#e74c3c;border-color:rgba(192,57,43,0.3)}
+.s-info{background:rgba(201,168,76,0.1);color:var(--gold2);border-color:rgba(201,168,76,0.3)}
+
+.label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;display:block}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:500;color:var(--cream);margin-bottom:1.25rem}
+
+.pub-result{font-size:12px;color:var(--bright);margin-bottom:4px}
+.pub-result a{color:var(--gold)}
+
+@media(max-width:600px){
+  main{padding:1rem}
+  header{padding:.75rem 1rem}
+  .step-tab{font-size:9px;padding:.5rem .25rem}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Vierbeiner<em>glück</em> <span style="color:var(--muted);font-size:.85rem;margin-left:.5rem">Newsletter</span></div>
+  <span id="kwBadge">KW –</span>
+</header>
+
+<div class="steps">
+  <div class="step-tab active" id="tab0">1 · Start</div>
+  <div class="step-tab" id="tab1">2 · Themen</div>
+  <div class="step-tab" id="tab2">3 · Feedback</div>
+  <div class="step-tab" id="tab3">4 · Preview</div>
+</div>
+
+<main>
+
+<!-- STEP 0 -->
+<div class="panel active" id="panel0">
+  <div id="loadingProd" class="loading"><div class="spinner"></div> Shopify-Produkte werden geladen...</div>
+  <div id="startContent" style="display:none">
+    <p class="section-title">Guten Morgen! 🐾</p>
+    <div class="season-box" id="seasonBox0"></div>
+    <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:1.5rem">
+      Claude analysiert die aktuelle Kalenderwoche und Saison und schlägt automatisch 3–4 passende Newsletter-Themen vor – mit echten Produktpreisen und URLs aus deinem Shopify-Shop.
+    </p>
+    <button class="btn btn-primary" onclick="generateProposals()">Themenvorschläge generieren →</button>
+  </div>
+</div>
+
+<!-- STEP 1 -->
+<div class="panel" id="panel1">
+  <div id="propLoading" class="loading" style="display:none"><div class="spinner"></div> Claude analysiert Saison & Produkte...</div>
+  <div id="propContent" style="display:none">
+    <div class="season-box" id="seasonBox1"></div>
+    <p class="label" id="acceptCount"></p>
+    <div id="proposals"></div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="toStep2()">Weiter mit Auswahl →</button>
+      <button class="btn" onclick="generateProposals()">Neu generieren</button>
+      <button class="btn" onclick="goTo(0)">← Zurück</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="panel" id="panel2">
+  <p class="section-title">Feedback & Anpassungen</p>
+  <div id="selSummary" class="season-box" style="margin-bottom:1.25rem"></div>
+  <span class="label">Optionale Anpassungen</span>
+  <textarea id="feedbackText" placeholder="z.B. Headline noch punchiger, Silvester-Stimmung betonen, bitte kürzer halten, andere Produktkombination..."></textarea>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="generateNewsletters()">Newsletter generieren →</button>
+    <button class="btn" onclick="goTo(1)">← Zurück</button>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="panel" id="panel3">
+  <div id="nlLoading" class="loading" style="display:none"><div class="spinner"></div><span id="nlLoadTxt">Wird geschrieben...</span></div>
+  <div id="nlResult" style="display:none">
+    <div id="statusMsg" style="display:none"></div>
+    <div class="tabs-row" id="nlTabs"></div>
+    <div class="actions" style="margin-top:0;margin-bottom:.75rem">
+      <button class="btn btn-publish btn-sm" id="btnPublish" onclick="publishCurrent()">In Listmonk veröffentlichen →</button>
+      <button class="btn btn-sm" id="btnPublishAll" onclick="publishAll()">Alle veröffentlichen →</button>
+      <button class="btn btn-sm" onclick="copyHTML()">HTML kopieren</button>
+      <button class="btn btn-sm" onclick="toggleRevise()">Überarbeiten</button>
+      <button class="btn btn-sm" onclick="goTo(0)">Neu starten</button>
+    </div>
+    <div id="pubResults"></div>
+    <div id="reviseBox" style="display:none;margin-bottom:.75rem">
+      <span class="label">Was soll angepasst werden?</span>
+      <textarea id="reviseTxt" placeholder="z.B. Headline zu lang, CTA direkter, Produkt X stärker betonen..."></textarea>
+      <div class="actions">
+        <button class="btn btn-primary btn-sm" onclick="revise()">Überarbeiten →</button>
+        <button class="btn btn-sm" onclick="toggleRevise()">Abbrechen</button>
+      </div>
+    </div>
+    <div class="preview-wrap"><iframe id="previewFrame"></iframe></div>
+  </div>
+</div>
+
+</main>
+
+<script>
+const SHOPIFY = 'https://n8n.vierbeinerglueck.de/webhook/shopify-produkte';
+const PUBLISH = 'https://n8n.vierbeinerglueck.de/webhook/newsletter-artifact';
+const SHOP    = 'https://vierbeinerglueck.de/products/';
+
+const CORE = ['GASSI-SCHUTZ','FELL-HAUT-KRALLEN','DENTAL-HYGIENE','DENTAL DROPS','GRAS-KOT','RUHE & GELASSENHEIT','IMMUNE','DETOX','KONZENTRATION','NÄSSE-KÄLTE','GELENK','WIRKSUBSTANZEN'];
+
+const SYS = `Du bist Newsletter-Experte für "Vierbeinerglück" – natürliche Hundeprodukte (Sari's Linie).
+TONALITÄT: Kompetenter Hundefreund, nie Verkäufer. Du-Form. Freundschaftlich. Bildungsauftrag.
+STRUKTUR (Ogilvy): Wirksubstanz-Headline → neugierige Einleitung → Story → Produktplatzierung → CTA mit Dringlichkeit.
+REGELN: Emojis bei Aufzählungen. Produktnamen exakt aus Daten. URLs/Preise NUR aus gelieferten Daten.
+HTML-OUTPUT: Nur valides HTML, inline CSS, email-kompatibel, max-width 600px zentriert. Farben: #0f2318 bg, #c9a84c gold, #f5f0e8 text.`;
+
+let products=[], proposals=[], accepted=new Set(), generatedNLs=[], currentIdx=0, history=[], publishedMap={};
+
+function getKW(){
+  const d=new Date(), jan1=new Date(d.getFullYear(),0,1);
+  return Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7);
+}
+function getSeason(){
+  const m=new Date().getMonth()+1, kw=getKW();
+  if(kw>=14&&kw<=24) return {name:'Frühling – Zeckensaison 🌿',focus:'Zeckenschutz-Hochsaison! Gassi-Schutz Drops in mind. 2 von 4 Newslettern. Zeckenthema priorisieren.',zecken:true};
+  if(m>=3&&m<=5) return {name:'Frühling 🌸',focus:'Fellwechsel, Vitalität, Saisonstart. Immune und Fell-Haut-Krallen im Fokus.',zecken:false};
+  if(m>=6&&m<=8) return {name:'Sommer ☀️',focus:'Outdoor, Agility, Reisezeit. Konzentration & Ausdauer, Detox.',zecken:false};
+  if(kw>=35&&kw<=48) return {name:'Herbst 🍂',focus:'Fellwechsel, Nässe-Kälte, Immunsystem stärken.',zecken:false};
+  if(m===12&&kw>=51) return {name:'Silvester 🎆',focus:'Ruhe & Gelassenheit Top-Priorität! Silvester-Angst der Hunde.',zecken:false};
+  if(m===12) return {name:'Winter ❄️',focus:'Nässe-Kälte, Immunschutz, Geschenkideen (Buch!).',zecken:false};
+  return {name:'Winter 🌨️',focus:'Nässe-Kälte Snacks, Gelenke, Detox nach Feiertagen.',zecken:false};
+}
+
+function buildCtx(){
+  return products.filter(p=>CORE.some(c=>p.title.toUpperCase().includes(c)))
+    .map(p=>`- ${p.title} | ${p.variants[0].price} EUR | ${SHOP}${p.handle}`).join('\n');
+}
+
+function goTo(n){
+  document.querySelectorAll('.panel').forEach((el,i)=>el.classList.toggle('active',i===n));
+  document.querySelectorAll('.step-tab').forEach((el,i)=>{
+    el.classList.remove('active','done');
+    if(i<n) el.classList.add('done');
+    if(i===n) el.classList.add('active');
+  });
+}
+
+async function loadProducts(){
+  try{
+    const r=await fetch(SHOPIFY);
+    const d=await r.json();
+    const arr=Array.isArray(d)?d:(d.products||[]);
+    products=arr.filter(p=>!p.title.toLowerCase().includes('messe')&&p.variants?.[0]);
+    const kw=getKW(), s=getSeason();
+    document.getElementById('kwBadge').textContent=`KW ${kw}`;
+    document.getElementById('loadingProd').style.display='none';
+    document.getElementById('startContent').style.display='block';
+    document.getElementById('seasonBox0').innerHTML=`<h3>${s.name}</h3><p>${s.focus}</p>`;
+  }catch(e){
+    document.getElementById('loadingProd').innerHTML=`<span style="color:#e74c3c">Shopify-Verbindung fehlgeschlagen: ${e.message}</span>`;
+  }
+}
+
+async function generateProposals(){
+  goTo(1);
+  document.getElementById('propLoading').style.display='flex';
+  document.getElementById('propContent').style.display='none';
+  proposals=[]; accepted=new Set(); history=[];
+  const s=getSeason(), kw=getKW();
+
+  const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
+Fokus: ${s.focus}
+
+Verfügbare Kernprodukte mit echten Preisen und URLs:
+${buildCtx()}
+
+Erstelle 4 Newsletter-Vorschläge passend zur aktuellen Saison.
+${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen (Zeckensaison-Hochphase)!':''}
+
+Antworte NUR mit diesem JSON (kein Markdown davor/danach):
+{"proposals":[
+{"id":1,"headline":"max 10 Wörter, Wirksubstanz im Fokus","anchor_product":"exakter Produktname","anchor_url":"exakte URL","anchor_price":"XX.XX","bundle_product":"exakter Produktname","bundle_url":"exakte URL","bundle_price":"XX.XX","wirksubstanz":"Hauptwirksubstanz","teaser":"2-3 neugierig machende Sätze","cta_grund":"konkreter Grund jetzt zu handeln","saison_bezug":"warum passt das gerade jetzt?","bild_prompt_en":"photorealistic dog lifestyle photo for email header, no text, landscape 600x300, warm natural light"},
+{"id":2,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"..."},
+{"id":3,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"..."},
+{"id":4,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"..."}
+]}`;
+
+  history.push({role:'user',content:prompt});
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:history})});
+    const d=await r.json();
+    const txt=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    history.push({role:'assistant',content:txt});
+    proposals=JSON.parse(txt).proposals;
+    proposals.forEach(p=>accepted.add(p.id));
+    renderProposals();
+  }catch(e){
+    document.getElementById('propLoading').innerHTML=`<span style="color:#e74c3c">Fehler: ${e.message}</span>`;
+  }
+}
+
+function renderProposals(){
+  const s=getSeason(), kw=getKW();
+  document.getElementById('propLoading').style.display='none';
+  document.getElementById('propContent').style.display='block';
+  document.getElementById('seasonBox1').innerHTML=`<h3>${s.name} · KW ${kw}</h3><p>${s.focus}</p>`;
+  updateCount();
+  const c=document.getElementById('proposals');
+  c.innerHTML='';
+  proposals.forEach(p=>{
+    const div=document.createElement('div');
+    div.className='card accepted'; div.id=`prop-${p.id}`;
+    div.innerHTML=`
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:.5rem">
+        <span class="nl-num">${p.id}</span>
+        <div style="flex:1">
+          <p class="card-title">"${p.headline}"</p>
+          <p class="card-sub">${p.saison_bezug}</p>
+        </div>
+      </div>
+      <div class="chips">
+        <span class="chip gold">📦 ${p.anchor_product} · ${p.anchor_price} €</span>
+        <span class="chip">➕ ${p.bundle_product} · ${p.bundle_price} €</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:.35rem">💡 Wirksubstanz: <strong style="color:var(--cream)">${p.wirksubstanz}</strong></p>
+      <p class="card-teaser">${p.teaser}</p>
+      <p style="font-size:12px;color:var(--muted)">⏰ ${p.cta_grund}</p>
+      <div class="actions">
+        <button class="btn btn-sm btn-accept" onclick="acc(${p.id})">✓ Annehmen</button>
+        <button class="btn btn-sm btn-reject" onclick="rej(${p.id})">✗ Ablehnen</button>
+      </div>`;
+    c.appendChild(div);
+  });
+}
+
+function acc(id){accepted.add(id);document.getElementById(`prop-${id}`).className='card accepted';updateCount();}
+function rej(id){accepted.delete(id);document.getElementById(`prop-${id}`).className='card rejected';updateCount();}
+function updateCount(){document.getElementById('acceptCount').textContent=`${accepted.size} von ${proposals.length} ausgewählt`;}
+
+function toStep2(){
+  if(accepted.size===0){alert('Bitte mindestens einen Vorschlag annehmen.');return;}
+  const sel=proposals.filter(p=>accepted.has(p.id));
+  document.getElementById('selSummary').innerHTML=
+    `<h3 style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--gold);margin-bottom:.5rem">Ausgewählt (${sel.length} Newsletter)</h3>`+
+    sel.map(p=>`<p style="font-size:13px;margin-bottom:.2rem"><span class="nl-num">${p.id}</span>"${p.headline}"</p>`).join('');
+  goTo(2);
+}
+
+async function generateNewsletters(){
+  const fb=document.getElementById('feedbackText').value.trim();
+  const sel=proposals.filter(p=>accepted.has(p.id));
+  goTo(3);
+  document.getElementById('nlLoading').style.display='flex';
+  document.getElementById('nlResult').style.display='none';
+  generatedNLs=[]; currentIdx=0; publishedMap={};
+
+  for(let i=0;i<sel.length;i++){
+    const p=sel[i];
+    document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} wird geschrieben...`;
+    const s=getSeason(), kw=getKW();
+    const prompt=`Schreibe Newsletter ${i+1}:
+Headline: "${p.headline}"
+Ankerprodukt: ${p.anchor_product} | ${p.anchor_price} EUR | ${p.anchor_url}
+Bundle: ${p.bundle_product} | ${p.bundle_price} EUR | ${p.bundle_url}
+Wirksubstanz im Fokus: ${p.wirksubstanz}
+Teaser-Idee: ${p.teaser}
+CTA-Grund: ${p.cta_grund}
+Saison: ${s.name}, KW ${kw}
+${fb?'Zusätzliches Feedback: '+fb:''}
+
+WICHTIG: Verwende EXAKT diese URLs und Preise. Antworte NUR mit vollständigem HTML.`;
+
+    history.push({role:'user',content:prompt});
+    try{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:history})});
+      const d=await r.json();
+      const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
+      history.push({role:'assistant',content:html});
+      generatedNLs.push({id:p.id,headline:p.headline,html,bildPrompt:p.bild_prompt_en||'Happy dog outdoors, natural light, no text, landscape 600x300',published:false});
+    }catch(e){
+      generatedNLs.push({id:p.id,headline:p.headline,html:`<p style="color:red">Fehler: ${e.message}</p>`,bildPrompt:'',published:false});
+    }
+  }
+  document.getElementById('nlLoading').style.display='none';
+  document.getElementById('nlResult').style.display='block';
+  renderTabs(); showNL(0);
+}
+
+function renderTabs(){
+  document.getElementById('nlTabs').innerHTML=
+    `<span class="label" style="margin:0;align-self:center">Newsletter:</span>`+
+    generatedNLs.map((nl,i)=>`<button class="btn btn-sm" id="tab-${i}" onclick="showNL(${i})">${nl.published?'✓ ':''}NL ${nl.id}</button>`).join('');
+}
+
+function showNL(i){
+  currentIdx=i;
+  document.querySelectorAll('[id^="tab-"]').forEach((t,j)=>{
+    t.style.background=j===i?'rgba(201,168,76,0.15)':'transparent';
+    t.style.borderColor=j===i?'rgba(201,168,76,0.5)':'';
+  });
+  document.getElementById('previewFrame').srcdoc=generatedNLs[i].html;
+  const btn=document.getElementById('btnPublish');
+  btn.textContent=generatedNLs[i].published?'✓ Bereits veröffentlicht':'In Listmonk veröffentlichen →';
+  btn.disabled=generatedNLs[i].published;
+}
+
+function copyHTML(){
+  navigator.clipboard.writeText(generatedNLs[currentIdx].html)
+    .then(()=>{showStatus('HTML in Zwischenablage kopiert!','s-ok');setTimeout(hideStatus,2500);});
+}
+
+function toggleRevise(){
+  const b=document.getElementById('reviseBox');
+  b.style.display=b.style.display==='none'?'block':'none';
+}
+
+async function revise(){
+  const fb=document.getElementById('reviseTxt').value.trim();
+  if(!fb) return;
+  toggleRevise();
+  document.getElementById('nlLoading').style.display='flex';
+  document.getElementById('nlLoadTxt').textContent='Wird überarbeitet...';
+  document.getElementById('nlResult').style.display='none';
+
+  history.push({role:'user',content:`Überarbeite NL ${generatedNLs[currentIdx].id}: ${fb}\n\nAntworte NUR mit vollständigem HTML.`});
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:history})});
+    const d=await r.json();
+    const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
+    history.push({role:'assistant',content:html});
+    generatedNLs[currentIdx].html=html;
+    generatedNLs[currentIdx].published=false;
+    document.getElementById('reviseTxt').value='';
+  }catch(e){showStatus('Fehler: '+e.message,'s-err');}
+  document.getElementById('nlLoading').style.display='none';
+  document.getElementById('nlResult').style.display='block';
+  renderTabs(); showNL(currentIdx);
+}
+
+async function publishNL(nl, idx){
+  const kw=getKW();
+  try{
+    const r=await fetch(PUBLISH,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({betreff:nl.headline,headline:nl.headline,html:nl.html,kw,nl_nummer:nl.id,bild_prompt:nl.bildPrompt})
+    });
+    const d=await r.json();
+    generatedNLs[idx].published=true;
+    publishedMap[idx]=d.listmonk_url||'https://email-campaign.vierbeinerglueck.de';
+    renderTabs(); if(currentIdx===idx) showNL(idx);
+    return {ok:true};
+  }catch(e){return {ok:false,error:e.message};}
+}
+
+async function publishCurrent(){
+  const btn=document.getElementById('btnPublish');
+  btn.disabled=true; btn.textContent='Wird verarbeitet...';
+  showStatus(`NL ${generatedNLs[currentIdx].id} wird veröffentlicht – Gemini generiert Bild...`,'s-info');
+  const res=await publishNL(generatedNLs[currentIdx],currentIdx);
+  if(res.ok){
+    showStatus(`NL ${generatedNLs[currentIdx].id} erfolgreich in Listmonk! Discord-Notification gesendet.`,'s-ok');
+    renderPubResults();
+  } else {
+    showStatus('Fehler: '+res.error,'s-err');
+    btn.disabled=false; btn.textContent='In Listmonk veröffentlichen →';
+  }
+}
+
+async function publishAll(){
+  const unpub=generatedNLs.map((nl,i)=>({nl,i})).filter(({nl})=>!nl.published);
+  if(!unpub.length){showStatus('Alle bereits veröffentlicht.','s-ok');return;}
+  document.querySelectorAll('.btn').forEach(b=>b.disabled=true);
+  showStatus(`Veröffentliche ${unpub.length} Newsletter...`,'s-info');
+  let ok=0,fail=0;
+  for(const {nl,i} of unpub){
+    const res=await publishNL(nl,i);
+    if(res.ok) ok++; else fail++;
+    await new Promise(r=>setTimeout(r,1500));
+  }
+  document.querySelectorAll('.btn').forEach(b=>b.disabled=false);
+  showStatus(fail===0?`Alle ${ok} Newsletter in Listmonk! Discord benachrichtigt.`:`${ok} erfolgreich, ${fail} fehlgeschlagen.`,fail===0?'s-ok':'s-err');
+  renderPubResults();
+}
+
+function renderPubResults(){
+  document.getElementById('pubResults').innerHTML=
+    Object.entries(publishedMap).map(([i,url])=>
+      `<p class="pub-result">✓ NL ${generatedNLs[i].id}: <a href="${url}" target="_blank">In Listmonk öffnen →</a></p>`
+    ).join('');
+}
+
+function showStatus(msg,cls){
+  const el=document.getElementById('statusMsg');
+  el.className='status '+cls; el.textContent=msg; el.style.display='block';
+}
+function hideStatus(){document.getElementById('statusMsg').style.display='none';}
+
+loadProducts();
+</script>
+</body>
+</html>
