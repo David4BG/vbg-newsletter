@@ -243,7 +243,7 @@ function getSeason(){
 }
 
 function buildCtx(){
-  return products.filter(p=>CORE.some(c=>p.title.toUpperCase().includes(c)))
+  return products.filter(p=>!p.title.toLowerCase().includes('set')&&!p.title.toLowerCase().includes('messe'))
     .map(p=>`- ${p.title} | ${p.variants[0].price} EUR | ${SHOP}${p.handle}`).join('\n');
 }
 
@@ -287,6 +287,8 @@ ${buildCtx()}
 
 Erstelle 4 Newsletter-Vorschläge passend zur aktuellen Saison.
 ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen (Zeckensaison-Hochphase)!':''}
+
+ABSOLUTE PFLICHT: Verwende NUR Produkte aus der obigen Liste. Jeder Produktname muss EXAKT so geschrieben sein wie in der Liste. Erfinde NIEMALS neue Produkte, Produktnamen oder Preise. Wenn du ein Produkt nicht in der Liste findest, nimm ein anderes aus der Liste.
 
 Antworte NUR mit diesem JSON (kein Markdown davor/danach):
 {"proposals":[
