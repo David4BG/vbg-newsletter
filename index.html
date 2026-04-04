@@ -387,30 +387,39 @@ async function generateNewsletters(){
     const utmAnchor = p.anchor_url + (p.anchor_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.anchor_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
     const utmBundle = p.bundle_url + (p.bundle_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.bundle_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
 
-    const prompt=`Schreibe Newsletter ${i+1}:
+    const prompt=`Schreibe einen Newsletter für Vierbeinerglück mit folgenden EXAKTEN Daten:
+
 Headline: "${p.headline}"
-Ankerprodukt: ${p.anchor_product} | ${p.anchor_price} EUR
-  → Produktlink (mit UTM): ${utmAnchor}
-Bundle-Produkt: ${p.bundle_product} | ${p.bundle_price} EUR
-  → Produktlink (mit UTM): ${utmBundle}
-Wirksubstanz im Fokus: ${p.wirksubstanz}
-Teaser-Idee: ${p.teaser}
-CTA-Grund: ${p.cta_grund}
+
+PRODUKT 1 (Anker):
+- Name: ${p.anchor_product}
+- Preis: ${p.anchor_price} EUR (EXAKT so verwenden, keine anderen Preise!)
+- Link: ${utmAnchor}
+
+PRODUKT 2 (Bundle):
+- Name: ${p.bundle_product}
+- Preis: ${p.bundle_price} EUR (EXAKT so verwenden, keine anderen Preise!)
+- Link: ${utmBundle}
+
+Wirksubstanz: ${p.wirksubstanz}
+Teaser: ${p.teaser}
+CTA: ${p.cta_grund}
 Saison: ${s.name}, KW ${kw}
-${fb?'Zusätzliches Feedback: '+fb:''}
+${fb?'Feedback: '+fb:''}
 
-WICHTIG: 
-- Verwende EXAKT diese URLs mit UTM-Parametern für alle Produktlinks im HTML
-- Jedes Produkt braucht einen klickbaren Link/Button zur Shop-URL
-- Preise exakt wie angegeben
-- Antworte NUR mit vollständigem HTML.`;
+STRIKTE REGELN:
+- NUR diese 2 Produkte erwähnen – KEINE weiteren Produkte erfinden
+- Preise EXAKT wie angegeben – niemals andere Preise
+- Links EXAKT wie angegeben mit UTM-Parametern
+- Jedes Produkt bekommt einen CTA-Button mit dem jeweiligen Link
+- HTML-Design: dunkelgrüner Hintergrund (#0f2318), goldene Akzente (#c9a84c), cremefarbener Text (#f5f0e8)
+- Antworte NUR mit validem HTML, kein Markdown`;
 
-    history.push({role:'user',content:prompt});
     try{
-      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:history})});
+      const freshMessages=[{role:'user',content:prompt}];
+      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:freshMessages})});
       const d=await r.json();
       const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
-      history.push({role:'assistant',content:html});
       generatedNLs.push({id:p.id,headline:p.headline,html,bildPrompt:p.bild_prompt_en||'Happy dog outdoors, natural light, no text, landscape 600x300',published:false,versand_datum:p.versand_datum||'',versand_label:p.versand_label||''});
     }catch(e){
       generatedNLs.push({id:p.id,headline:p.headline,html:`<p style="color:red">Fehler: ${e.message}</p>`,bildPrompt:'',published:false});
