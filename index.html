@@ -298,7 +298,7 @@ Antworte NUR mit diesem JSON (kein Markdown davor/danach):
 
   history.push({role:'user',content:prompt});
   try{
-    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:history})});
+    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:history})});
     const d=await r.json();
     const txt=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
     history.push({role:'assistant',content:txt});
@@ -383,7 +383,7 @@ WICHTIG: Verwende EXAKT diese URLs und Preise. Antworte NUR mit vollständigem H
 
     history.push({role:'user',content:prompt});
     try{
-      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:history})});
+      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:history})});
       const d=await r.json();
       const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
       history.push({role:'assistant',content:html});
@@ -435,7 +435,7 @@ async function revise(){
 
   history.push({role:'user',content:`Überarbeite NL ${generatedNLs[currentIdx].id}: ${fb}\n\nAntworte NUR mit vollständigem HTML.`});
   try{
-    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:history})});
+    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:history})});
     const d=await r.json();
     const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
     history.push({role:'assistant',content:html});
