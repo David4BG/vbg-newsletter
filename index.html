@@ -57,8 +57,8 @@ main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
   background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
   padding:1.25rem;margin-bottom:.75rem;transition:border-color .2s;
 }
-.card.accepted{border-left:3px solid var(--bright)}
-.card.rejected{border-left:3px solid var(--danger);opacity:.4}
+.card.accepted{border-left:3px solid var(--bright);background:rgba(82,183,136,0.06)}
+.card.rejected{border-left:3px solid var(--danger);opacity:.3;filter:grayscale(0.5)}
 
 .card-title{font-family:'Cormorant Garamond',serif;font-size:1.05rem;font-weight:500;color:var(--cream);margin-bottom:.35rem}
 .card-sub{font-size:12px;color:var(--muted);margin-bottom:.5rem}
@@ -222,7 +222,7 @@ const CORE = ['GASSI-SCHUTZ','FELL-HAUT-KRALLEN','DENTAL-HYGIENE','DENTAL DROPS'
 const SYS = `Du bist Newsletter-Experte für "Vierbeinerglück" – natürliche Hundeprodukte (Sari's Linie).
 TONALITÄT: Kompetenter Hundefreund, nie Verkäufer. Du-Form. Freundschaftlich. Bildungsauftrag.
 STRUKTUR (Ogilvy): Wirksubstanz-Headline → neugierige Einleitung → Story → Produktplatzierung → CTA mit Dringlichkeit.
-REGELN: Emojis bei Aufzählungen. Produktnamen exakt aus Daten. URLs/Preise NUR aus gelieferten Daten.
+REGELN: Emojis bei Aufzählungen. Verwende AUSSCHLIESSLICH Produkte die dir im Prompt mit Name, Preis und URL übergeben werden. NIEMALS Produkte erfinden, aus dem Gedächtnis ergänzen oder umbenennen. Wenn ein Produkt nicht in der Liste steht, existiert es nicht.
 HTML-OUTPUT: Nur valides HTML, inline CSS, email-kompatibel, max-width 600px zentriert. Farben: #0f2318 bg, #c9a84c gold, #f5f0e8 text.`;
 
 let products=[], proposals=[], accepted=new Set(), generatedNLs=[], currentIdx=0, history=[], publishedMap={};
@@ -290,10 +290,10 @@ ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen
 
 Antworte NUR mit diesem JSON (kein Markdown davor/danach):
 {"proposals":[
-{"id":1,"headline":"max 10 Wörter, Wirksubstanz im Fokus","anchor_product":"exakter Produktname","anchor_url":"exakte URL","anchor_price":"XX.XX","bundle_product":"exakter Produktname","bundle_url":"exakte URL","bundle_price":"XX.XX","wirksubstanz":"Hauptwirksubstanz","teaser":"2-3 neugierig machende Sätze","cta_grund":"konkreter Grund jetzt zu handeln","saison_bezug":"warum passt das gerade jetzt?","bild_prompt_en":"photorealistic dog lifestyle photo for email header, no text, landscape 600x300, warm natural light"},
-{"id":2,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"..."},
-{"id":3,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"..."},
-{"id":4,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"..."}
+{"id":1,"headline":"max 10 Wörter, Wirksubstanz im Fokus","anchor_product":"exakter Produktname","anchor_url":"exakte URL","anchor_price":"XX.XX","bundle_product":"exakter Produktname","bundle_url":"exakte URL","bundle_price":"XX.XX","wirksubstanz":"Hauptwirksubstanz","teaser":"2-3 neugierig machende Sätze","cta_grund":"konkreter Grund jetzt zu handeln","saison_bezug":"warum passt das gerade jetzt?","bild_prompt_en":"photorealistic dog lifestyle photo for email header, no text, landscape 600x300, warm natural light","versand_datum":"YYYY-MM-DDTHH:mm:00.000Z (Dienstag oder Donnerstag dieser KW, 10:00 Uhr)","versand_label":"z.B. Di. 15.04."},
+{"id":2,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"...","versand_datum":"...","versand_label":"..."},
+{"id":3,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"...","versand_datum":"...","versand_label":"..."},
+{"id":4,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"...","versand_datum":"...","versand_label":"..."}
 ]}`;
 
   history.push({role:'user',content:prompt});
@@ -336,6 +336,7 @@ function renderProposals(){
       <p style="font-size:12px;color:var(--muted);margin-bottom:.35rem">💡 Wirksubstanz: <strong style="color:var(--cream)">${p.wirksubstanz}</strong></p>
       <p class="card-teaser">${p.teaser}</p>
       <p style="font-size:12px;color:var(--muted)">⏰ ${p.cta_grund}</p>
+      <p style="font-size:12px;color:var(--gold2);margin-top:.35rem">📅 Versand: ${p.versand_label||'wird geplant'}</p>
       <div class="actions">
         <button class="btn btn-sm btn-accept" onclick="acc(${p.id})">✓ Annehmen</button>
         <button class="btn btn-sm btn-reject" onclick="rej(${p.id})">✗ Ablehnen</button>
@@ -344,8 +345,22 @@ function renderProposals(){
   });
 }
 
-function acc(id){accepted.add(id);document.getElementById(`prop-${id}`).className='card accepted';updateCount();}
-function rej(id){accepted.delete(id);document.getElementById(`prop-${id}`).className='card rejected';updateCount();}
+function acc(id){
+  accepted.add(id);
+  const el=document.getElementById(`prop-${id}`);
+  el.className='card accepted';
+  el.querySelectorAll('.btn-accept').forEach(b=>{b.textContent='✓ Angenommen';b.style.background='rgba(82,183,136,0.2)';b.style.borderColor='var(--bright)';});
+  el.querySelectorAll('.btn-reject').forEach(b=>{b.textContent='Ablehnen';b.style.background='';b.style.borderColor='';});
+  updateCount();
+}
+function rej(id){
+  accepted.delete(id);
+  const el=document.getElementById(`prop-${id}`);
+  el.className='card rejected';
+  el.querySelectorAll('.btn-reject').forEach(b=>{b.textContent='✗ Abgelehnt';b.style.background='rgba(192,57,43,0.2)';b.style.borderColor='var(--danger)';});
+  el.querySelectorAll('.btn-accept').forEach(b=>{b.textContent='Annehmen';b.style.background='';b.style.borderColor='';});
+  updateCount();
+}
 function updateCount(){document.getElementById('acceptCount').textContent=`${accepted.size} von ${proposals.length} ausgewählt`;}
 
 function toStep2(){
@@ -369,17 +384,26 @@ async function generateNewsletters(){
     const p=sel[i];
     document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} wird geschrieben...`;
     const s=getSeason(), kw=getKW();
+    const utmAnchor = p.anchor_url + (p.anchor_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.anchor_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
+    const utmBundle = p.bundle_url + (p.bundle_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.bundle_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
+
     const prompt=`Schreibe Newsletter ${i+1}:
 Headline: "${p.headline}"
-Ankerprodukt: ${p.anchor_product} | ${p.anchor_price} EUR | ${p.anchor_url}
-Bundle: ${p.bundle_product} | ${p.bundle_price} EUR | ${p.bundle_url}
+Ankerprodukt: ${p.anchor_product} | ${p.anchor_price} EUR
+  → Produktlink (mit UTM): ${utmAnchor}
+Bundle-Produkt: ${p.bundle_product} | ${p.bundle_price} EUR
+  → Produktlink (mit UTM): ${utmBundle}
 Wirksubstanz im Fokus: ${p.wirksubstanz}
 Teaser-Idee: ${p.teaser}
 CTA-Grund: ${p.cta_grund}
 Saison: ${s.name}, KW ${kw}
 ${fb?'Zusätzliches Feedback: '+fb:''}
 
-WICHTIG: Verwende EXAKT diese URLs und Preise. Antworte NUR mit vollständigem HTML.`;
+WICHTIG: 
+- Verwende EXAKT diese URLs mit UTM-Parametern für alle Produktlinks im HTML
+- Jedes Produkt braucht einen klickbaren Link/Button zur Shop-URL
+- Preise exakt wie angegeben
+- Antworte NUR mit vollständigem HTML.`;
 
     history.push({role:'user',content:prompt});
     try{
@@ -387,7 +411,7 @@ WICHTIG: Verwende EXAKT diese URLs und Preise. Antworte NUR mit vollständigem H
       const d=await r.json();
       const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
       history.push({role:'assistant',content:html});
-      generatedNLs.push({id:p.id,headline:p.headline,html,bildPrompt:p.bild_prompt_en||'Happy dog outdoors, natural light, no text, landscape 600x300',published:false});
+      generatedNLs.push({id:p.id,headline:p.headline,html,bildPrompt:p.bild_prompt_en||'Happy dog outdoors, natural light, no text, landscape 600x300',published:false,versand_datum:p.versand_datum||'',versand_label:p.versand_label||''});
     }catch(e){
       generatedNLs.push({id:p.id,headline:p.headline,html:`<p style="color:red">Fehler: ${e.message}</p>`,bildPrompt:'',published:false});
     }
@@ -454,7 +478,7 @@ async function publishNL(nl, idx){
     const r=await fetch(PUBLISH,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({betreff:nl.headline,headline:nl.headline,html:nl.html,kw,nl_nummer:nl.id,bild_prompt:nl.bildPrompt})
+      body:JSON.stringify({betreff:nl.headline,headline:nl.headline,html:nl.html,kw,nl_nummer:nl.id,bild_prompt:nl.bildPrompt,versand_datum:nl.versand_datum||''})
     });
     const d=await r.json();
     generatedNLs[idx].published=true;
