@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter Generator · Vierbeinerglück</title>
+<title>Newsletter Generator V7· Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -105,8 +105,12 @@ textarea::placeholder{color:var(--muted)}
 .spinner{width:20px;height:20px;border:2px solid rgba(224,184,78,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-.preview-wrap{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:1rem;background:#fff}
-.preview-wrap iframe{width:100%;border:none;height:650px;display:block}
+.preview-wrap{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:.75rem;background:#0b1e11;display:flex;justify-content:center;padding:20px;}
+.preview-wrap.desktop iframe{width:100%;max-width:660px;border:none;height:700px;display:block;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,0.4);}
+.preview-wrap.mobile iframe{width:390px;border:none;height:700px;display:block;border-radius:40px;box-shadow:0 8px 40px rgba(0,0,0,0.5);border:8px solid #1a1a1a;}
+.device-toggle{display:flex;gap:6px;margin-bottom:.5rem;align-items:center;}
+.device-btn{padding:5px 14px;border-radius:var(--r);border:.5px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-family:var(--font-sans);cursor:pointer;transition:all .15s;}
+.device-btn.active{background:var(--gold);color:var(--bg);border-color:var(--gold);}
 
 .tabs-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
 
@@ -207,7 +211,12 @@ textarea::placeholder{color:var(--muted)}
         <button class="btn btn-sm" onclick="toggleRevise()">Abbrechen</button>
       </div>
     </div>
-    <div class="preview-wrap"><iframe id="previewFrame"></iframe></div>
+    <div class="device-toggle">
+      <span class="label" style="margin:0;align-self:center">Vorschau:</span>
+      <button class="device-btn active" onclick="setDevice('desktop')">🖥 Desktop</button>
+      <button class="device-btn" onclick="setDevice('mobile')">📱 Mobil</button>
+    </div>
+    <div class="preview-wrap desktop" id="previewWrap"><iframe id="previewFrame"></iframe></div>
   </div>
 </div>
 
@@ -492,13 +501,74 @@ function renderTabs(){
     generatedNLs.map((nl,i)=>`<button class="btn btn-sm" id="tab-${i}" onclick="showNL(${i})">${nl.published?'✓ ':''}NL ${nl.id}</button>`).join('');
 }
 
+function getTemplateHtml(content) {
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Jost:wght@300;400;500&display=swap');
+body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
+table,td{border-collapse:collapse}
+img{border:0;display:block;max-width:100%}
+body{margin:0;padding:0;background:#0b1e11;font-family:'Jost',Georgia,sans-serif;}
+.content-wrap p{font-family:'Jost',Georgia,sans-serif;font-size:16px;font-weight:300;line-height:1.85;color:#dedad2;margin:0 0 20px 0}
+.content-wrap h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:32px;font-weight:600;color:#f5f0e8;margin:0 0 24px 0;line-height:1.25}
+.content-wrap h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;color:#e8c97a;margin:28px 0 14px 0}
+.content-wrap h3{font-family:'Jost',Georgia,sans-serif;font-size:13px;font-weight:500;color:#c9a84c;letter-spacing:0.12em;text-transform:uppercase;margin:24px 0 10px 0}
+.content-wrap li{font-family:'Jost',Georgia,sans-serif;font-size:15px;font-weight:300;line-height:1.8;color:#dedad2;margin-bottom:6px}
+.content-wrap a{color:#c9a84c!important;text-decoration:none!important}
+.content-wrap strong{color:#f0ece4;font-weight:500}
+.content-wrap blockquote{border-left:3px solid #c9a84c;margin:20px 0;padding:12px 20px;background:rgba(201,168,76,0.06)}
+</style>
+</head>
+<body>
+<div style="background:#0b1e11;padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:660px;margin:0 auto;background:#132a1c;">
+  <tr><td style="background:linear-gradient(160deg,#0f2318 0%,#1a3828 100%);padding:36px 48px;text-align:center;border-bottom:1px solid rgba(201,168,76,0.25);">
+    <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:600;color:#f5f0e8;">VierBeiner<span style="color:#c9a84c;font-style:italic;">Glück</span></span>
+    <p style="font-family:'Jost',Georgia,sans-serif;font-size:11px;color:rgba(245,240,232,0.45);letter-spacing:0.2em;text-transform:uppercase;margin:8px 0 0 0;">Pfälzerwald · Familienbetrieb seit 1963</p>
+  </td></tr>
+  <tr><td style="height:2px;background:linear-gradient(90deg,transparent,#c9a84c,#e8c97a,#c9a84c,transparent);font-size:0;">&nbsp;</td></tr>
+  <tr><td class="content-wrap" style="padding:44px 48px 36px;background:#132a1c;">${content}</td></tr>
+  <tr><td style="background:#0f2318;padding:32px 48px;text-align:center;border-top:1px solid rgba(201,168,76,0.12);">
+    <a href="#" style="display:inline-block;background:#c9a84c;color:#0f2318!important;font-family:'Jost',Georgia,sans-serif;font-size:12px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;text-decoration:none!important;padding:16px 44px;border-radius:2px;">Jetzt entdecken →</a>
+  </td></tr>
+  <tr><td style="background:#0b1e11;border-top:1px solid rgba(201,168,76,0.12);padding:24px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="font-family:'Jost',Georgia,sans-serif;font-size:11px;color:rgba(245,240,232,0.45);text-align:center;padding:0 8px;"><span style="color:#c9a84c;display:block;font-size:18px;margin-bottom:6px;">✓</span>100% Natürlich</td>
+      <td style="font-family:'Jost',Georgia,sans-serif;font-size:11px;color:rgba(245,240,232,0.45);text-align:center;padding:0 8px;border-left:1px solid rgba(201,168,76,0.1);"><span style="color:#c9a84c;display:block;font-size:18px;margin-bottom:6px;">✓</span>Handgemacht</td>
+      <td style="font-family:'Jost',Georgia,sans-serif;font-size:11px;color:rgba(245,240,232,0.45);text-align:center;padding:0 8px;border-left:1px solid rgba(201,168,76,0.1);"><span style="color:#c9a84c;display:block;font-size:18px;margin-bottom:6px;">✓</span>Made in Germany</td>
+      <td style="font-family:'Jost',Georgia,sans-serif;font-size:11px;color:rgba(245,240,232,0.45);text-align:center;padding:0 8px;border-left:1px solid rgba(201,168,76,0.1);"><span style="color:#c9a84c;display:block;font-size:18px;margin-bottom:6px;">★ 4,9</span>10.000+ Vierbeiner</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:32px 48px;text-align:center;background:#0b1e11;">
+    <div style="height:1px;background:rgba(201,168,76,0.15);margin:0 0 24px 0;"></div>
+    <p style="font-family:'Jost',Georgia,sans-serif;font-size:13px;color:rgba(245,240,232,0.55);line-height:1.9;margin:0 0 8px 0;"><strong style="color:rgba(245,240,232,0.8);">VierBeinerGlück Vital e.K.</strong><br>Inhaber: Hermann Schmidt<br>Unterdorfstraße 12 · 56370 Ebertshausen</p>
+    <p style="font-family:'Jost',Georgia,sans-serif;font-size:11px;color:rgba(245,240,232,0.3);line-height:1.8;margin:0;">Handelsregister: HRA 23262 · USt-ID: DE452439019<br>Du erhältst diese E-Mail, weil du dich für unseren Newsletter angemeldet hast.</p>
+  </td></tr>
+</table>
+</div>
+</body>
+</html>`;
+}
+
+function setDevice(device) {
+  const wrap = document.getElementById('previewWrap');
+  wrap.className = 'preview-wrap ' + device;
+  document.querySelectorAll('.device-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  showNL(currentIdx);
+}
+
 function showNL(i){
   currentIdx=i;
   document.querySelectorAll('[id^="tab-"]').forEach((t,j)=>{
     t.style.background=j===i?'rgba(201,168,76,0.15)':'transparent';
     t.style.borderColor=j===i?'rgba(201,168,76,0.5)':'';
   });
-  document.getElementById('previewFrame').srcdoc=generatedNLs[i].html;
+  document.getElementById('previewFrame').srcdoc=getTemplateHtml(generatedNLs[i].html);
   const btn=document.getElementById('btnPublish');
   btn.textContent=generatedNLs[i].published?'✓ Bereits veröffentlicht':'In Listmonk veröffentlichen →';
   btn.disabled=generatedNLs[i].published;
