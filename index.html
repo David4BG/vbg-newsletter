@@ -227,13 +227,24 @@ REGELN: Emojis bei Aufzählungen. Verwende AUSSCHLIESSLICH Produkte die dir im P
 
 HTML-OUTPUT REGELN (sehr wichtig):
 - Liefere NUR den reinen Inhalt – KEIN <html>, <head>, <body>, <style> Tag
-- KEIN eigenes CSS oder Wrapper-Divs mit Hintergrundfarben
-- Das Template kümmert sich um Layout, Farben und Schriften
-- Erlaubte Tags: <h1>, <h2>, <h3>, <p>, <ul>, <li>, <ol>, <strong>, <em>, <a>, <img>, <blockquote>, <hr>
-- Links: immer mit style="color:#c9a84c!important;text-decoration:none!important;border:none!important;"
-- Produktpreis: <p style="color:#c9a84c;font-size:18px;font-weight:500;margin:8px 0 16px 0;">XX.XX EUR</p>
-- CTA-Button: <a href="URL" style="display:inline-block;background:#c9a84c;color:#0f2318!important;font-family:Georgia,sans-serif;font-size:12px;font-weight:500;letter-spacing:0.15em;text-transform:uppercase;text-decoration:none!important;padding:14px 36px;border-radius:2px;border:none!important;">BUTTON TEXT</a>
-- Trennlinie zwischen Produkten: <hr style="border:none;border-top:1px solid rgba(201,168,76,0.2);margin:28px 0;">
+- KEIN eigenes CSS-Block, KEIN <style> Tag
+- Das Template kümmert sich um das äußere Layout
+- ALLE Styles müssen als inline style direkt am jeweiligen Tag stehen – Gmail Desktop ignoriert sonst alles
+- Schriftart IMMER angeben: font-family:'Cormorant Garamond',Georgia,serif für Überschriften, font-family:'Jost',Arial,sans-serif für Text
+
+INLINE STYLES für jeden Tag:
+- <p>: style="font-family:'Jost',Arial,sans-serif;font-size:16px;font-weight:300;line-height:1.85;color:#dedad2;margin:0 0 20px 0;"
+- <h1>: style="font-family:'Cormorant Garamond',Georgia,serif;font-size:32px;font-weight:600;color:#f5f0e8;margin:0 0 24px 0;line-height:1.25;"
+- <h2>: style="font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;color:#e8c97a;margin:28px 0 14px 0;line-height:1.3;"
+- <h3>: style="font-family:'Jost',Arial,sans-serif;font-size:13px;font-weight:500;color:#c9a84c;letter-spacing:0.12em;text-transform:uppercase;margin:24px 0 10px 0;"
+- <li>: style="font-family:'Jost',Arial,sans-serif;font-size:15px;font-weight:300;line-height:1.8;color:#dedad2;margin-bottom:6px;"
+- <strong>: style="color:#f0ece4;font-weight:500;"
+- <a> (Textlink): style="color:#c9a84c!important;text-decoration:none!important;border-bottom:1px solid rgba(201,168,76,0.35);"
+- Produktpreis: <p style="font-family:'Jost',Arial,sans-serif;font-size:20px;font-weight:500;color:#c9a84c;margin:8px 0 16px 0;">XX.XX EUR</p>
+- CTA-Button: immer als Gmail-sichere Tabelle:
+<table cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0;"><tr><td style="background-color:#c9a84c;border-radius:2px;"><a href="URL" style="display:inline-block;background-color:#c9a84c;color:#0f2318!important;font-family:'Jost',Arial,sans-serif;font-size:12px;font-weight:500;letter-spacing:0.15em;text-transform:uppercase;text-decoration:none!important;border:none!important;outline:none!important;padding:14px 36px;">BUTTON TEXT</a></td></tr></table>
+- Trennlinie: <hr style="border:none;border-top:1px solid rgba(201,168,76,0.2);margin:28px 0;">
+- Blockquote: <blockquote style="border-left:3px solid #c9a84c;margin:20px 0;padding:12px 20px;background:rgba(201,168,76,0.06);">
 
 PERSÖNLICHE ANREDE: Beginne IMMER mit:
 <p>Hallo {{ if .Subscriber.FirstName }}{{ .Subscriber.FirstName }}{{ else }}Hundefreund{{ end }},</p>`;
