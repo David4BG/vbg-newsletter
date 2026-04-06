@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v14 Generator · Vierbeinerglück</title>
+<title>Newsletter v15 Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -328,14 +328,27 @@ async function loadProducts(){
 
 async function queryRAG(query, saison, produkte){
   try{
-    const r=await fetch(RAG,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({query,saison,produkte})});
+    console.log('RAG Query gestartet:', query);
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),25000);
+    const r=await fetch(RAG,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,saison,produkte}),
+      signal:controller.signal
+    });
+    clearTimeout(timeout);
+    console.log('RAG Response Status:', r.status);
     const d=await r.json();
+    console.log('RAG Response:', d);
     if(d.wissen){
       const w=JSON.parse(d.wissen.replace(/```json|```/g,'').trim());
+      console.log('RAG Wissen erfolgreich:', w);
       return w;
     }
-  }catch(e){console.warn('RAG query failed:',e);}
+  }catch(e){
+    console.warn('RAG query failed:', e.name, e.message);
+  }
   return null;
 }
 
