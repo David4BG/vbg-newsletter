@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v17 Generator · Vierbeinerglück</title>
+<title>Newsletter v18 Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -137,7 +137,16 @@ textarea::placeholder{color:var(--muted)}
 
 <header>
   <div class="logo">Vierbeiner<em>glück</em> <span style="color:var(--muted);font-size:.85rem;margin-left:.5rem">Newsletter</span></div>
-  <span id="kwBadge">KW –</span>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-size:11px;color:var(--muted);">Aktuell:</span>
+    <span id="kwBadge" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:rgba(201,168,76,0.08);border:1px solid var(--border);padding:3px 10px;border-radius:20px;">KW –</span>
+    <span style="font-size:11px;color:var(--muted);">NL:</span>
+    <div style="display:flex;align-items:center;gap:4px;background:rgba(224,184,78,0.1);border:1px solid rgba(224,184,78,0.35);border-radius:20px;padding:2px 8px;">
+      <button onclick="changeNlKW(-1)" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">−</button>
+      <span id="nlKwBadge" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);min-width:32px;text-align:center;">KW –</span>
+      <button onclick="changeNlKW(+1)" style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">+</button>
+    </div>
+  </div>
 </header>
 
 <div class="steps">
@@ -233,7 +242,15 @@ const CORE = ['GASSI-SCHUTZ','FELL-HAUT-KRALLEN','DENTAL-HYGIENE','DENTAL DROPS'
 const SYS = `Du bist Newsletter-Experte für "Vierbeinerglück" – natürliche Hundeprodukte (Sari's Linie).
 TONALITÄT: Kompetenter Hundefreund, nie Verkäufer. Du-Form. Freundschaftlich. Bildungsauftrag.
 
-PRODUKTNAMEN: Die Produkte heißen "Drops" – das sind FESTE Tropfen, NICHT flüssig. Niemals "Tropfen" schreiben, immer "Drops". Produktnamen exakt so verwenden wie übergeben.
+PRODUKTNAMEN: Die Produkte heißen "Drops" – das sind FESTE Drops, NICHT flüssig. Niemals "Tropfen" schreiben, immer "Drops". Produktnamen exakt so verwenden wie übergeben.
+
+AKTUELLES JAHR: Schreibe niemals ein konkretes Jahr wie "2024" oder "2025" in den Newsletter-Text. Nutze stattdessen "diese Saison", "aktuell", "in diesem Frühling" etc.
+
+RECHTLICHE PFLICHT – KEINE WIRKUNGSVERSPRECHEN:
+- NIEMALS prozentuale Wirksamkeitsangaben nennen (kein "81%", "98%", "100%")
+- NIEMALS absolute Versprechen wie "schützt sicher vor Zecken" oder "verhindert Zeckenbisse"
+- Stattdessen: "kann unterstützen", "viele Hundehalter berichten", "wird traditionell eingesetzt", "soll helfen"
+- Kein Heilversprechen, kein Wirkungsversprechen – auch nicht indirekt
 
 STORIES & BEISPIELE: Erfinde bei jeder Geschichte NEUE, abwechslungsreiche Details:
 - Hundenamen: variiere zwischen Bello, Luna, Rocky, Mia, Max, Lotte, Bruno, Nala, Finn, Zara, Oscar, Emma, Thor, Cleo
@@ -282,6 +299,14 @@ function getKW(){
   const d=new Date(), jan1=new Date(d.getFullYear(),0,1);
   return Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7);
 }
+let nlKW = null; // Newsletter-KW (Standard: aktuelle KW + 1)
+function getNlKW(){ return nlKW !== null ? nlKW : getKW()+1; }
+function changeNlKW(delta){
+  nlKW = getNlKW() + delta;
+  if(nlKW < 1) nlKW = 1;
+  if(nlKW > 53) nlKW = 53;
+  document.getElementById('nlKwBadge').textContent='KW '+nlKW;
+}
 function getSeason(){
   const m=new Date().getMonth()+1, kw=getKW();
   if(kw>=14&&kw<=24) return {name:'Frühling – Zeckensaison 🌿',focus:'Zeckenschutz-Hochsaison! Gassi-Schutz Drops in mind. 2 von 4 Newslettern. Zeckenthema priorisieren.',zecken:true};
@@ -318,6 +343,7 @@ async function loadProducts(){
     products=arr.filter(p=>!p.title.toLowerCase().includes('messe')&&p.variants?.[0]);
     const kw=getKW(), s=getSeason();
     document.getElementById('kwBadge').textContent=`KW ${kw}`;
+    document.getElementById('nlKwBadge').textContent=`KW ${getNlKW()}`;
     document.getElementById('loadingProd').style.display='none';
     document.getElementById('startContent').style.display='block';
     document.getElementById('seasonBox0').innerHTML=`<h3>${s.name}</h3><p>${s.focus}</p>`;
@@ -357,7 +383,7 @@ async function generateProposals(){
   document.getElementById('propLoading').style.display='flex';
   document.getElementById('propContent').style.display='none';
   proposals=[]; accepted=new Set(); history=[];
-  const s=getSeason(), kw=getKW();
+  const s=getSeason(), kw=getNlKW();
 
   const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
 Fokus: ${s.focus}
@@ -494,7 +520,7 @@ async function generateNewsletters(){
   for(let i=0;i<sel.length;i++){
     const p=sel[i];
     document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} wird geschrieben...`;
-    const s=getSeason(), kw=getKW();
+    const s=getSeason(), kw=getNlKW();
     const utmAnchor = p.anchor_url + (p.anchor_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.anchor_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
     const utmBundle = p.bundle_url + (p.bundle_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.bundle_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
 
@@ -670,7 +696,7 @@ async function revise(){
 }
 
 async function publishNL(nl, idx){
-  const kw=getKW();
+  const kw=getNlKW();
   try{
     const r=await fetch(PUBLISH,{
       method:'POST',
