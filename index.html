@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter Generator v12· Vierbeinerglück</title>
+<title>Newsletter Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -226,6 +226,7 @@ textarea::placeholder{color:var(--muted)}
 const SHOPIFY = '/api/shopify';
 const PUBLISH = '/api/publish';
 const SHOP    = 'https://vierbeinerglueck.de/products/';
+const RAG     = '/api/rag';
 
 const CORE = ['GASSI-SCHUTZ','FELL-HAUT-KRALLEN','DENTAL-HYGIENE','DENTAL DROPS','GRAS-KOT','RUHE & GELASSENHEIT','IMMUNE','DETOX','KONZENTRATION','NÄSSE-KÄLTE','GELENK','WIRKSUBSTANZEN'];
 
@@ -317,6 +318,19 @@ async function loadProducts(){
   }
 }
 
+async function queryRAG(query, saison, produkte){
+  try{
+    const r=await fetch(RAG,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,saison,produkte})});
+    const d=await r.json();
+    if(d.wissen){
+      const w=JSON.parse(d.wissen.replace(/```json|```/g,'').trim());
+      return w;
+    }
+  }catch(e){console.warn('RAG query failed:',e);}
+  return null;
+}
+
 async function generateProposals(){
   goTo(1);
   document.getElementById('propLoading').style.display='flex';
@@ -324,11 +338,32 @@ async function generateProposals(){
   proposals=[]; accepted=new Set(); history=[];
   const s=getSeason(), kw=getKW();
 
+  // RAG-Wissen für Saison abfragen
+  document.getElementById('propLoading').querySelector('div+*') ? null : null;
+  const saionQuery = s.zecken ? 'Zeckenschutz natürliche Parasiten Abwehr' : 
+    s.name.includes('Herbst') ? 'Fellwechsel Immunsystem Herbst' :
+    s.name.includes('Winter') ? 'Kälte Gelenke Immunschutz Winter' :
+    s.name.includes('Sommer') ? 'Ausdauer Detox Sommer Hund' : 'Frühjahr Vitalität Fellwechsel';
+  
+  const topProducts = products.filter(p=>{
+    const ex=['set','messe','duo','trio','kombi','bundle','ebook','buch'];
+    return !ex.some(x=>p.title.toLowerCase().includes(x));
+  }).slice(0,3).map(p=>p.title);
+  
+  const ragWissen = await queryRAG(saionQuery, s.name, topProducts);
+  
+  const ragContext = ragWissen ? `
+WIRKSTOFF-WISSEN AUS UNSEREM RATGEBER (nutze das für fundierte Vorschläge):
+${ragWissen.wirkstoffe ? ragWissen.wirkstoffe.map(w => `- ${w.name}: ${w.wirkung}`).join('\n') : ''}
+Überraschender Bildungs-Fakt für Newsletter-Teaser: ${ragWissen.bildungs_fakt || ''}
+Saisonaler Bezug: ${ragWissen.saison_fakt || ''}` : '';
+
   const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
 Fokus: ${s.focus}
 
 Verfügbare Kernprodukte mit echten Preisen und URLs:
 ${buildCtx()}
+${ragContext}
 
 Erstelle 4 Newsletter-Vorschläge passend zur aktuellen Saison.
 ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen (Zeckensaison-Hochphase)!':''}
