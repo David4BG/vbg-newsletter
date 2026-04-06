@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter Generator · Vierbeinerglück</title>
+<title>Newsletter v20 Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -356,7 +356,7 @@ async function queryRAG(query, saison, produkte){
   try{
     console.log('RAG Query gestartet:', query);
     const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),25000);
+    const timeout=setTimeout(()=>controller.abort(),45000);
     const r=await fetch(RAG,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -538,16 +538,23 @@ async function generateNewsletters(){
   document.getElementById('nlResult').style.display='none';
   generatedNLs=[]; currentIdx=0; publishedMap={}; initStoryPool();
 
+  // Alle RAG-Abfragen parallel vorab laden
+  const s=getSeason(), kw=getNlKW();
+  document.getElementById('nlLoadTxt').textContent=`Wirkstoff-Wissen für alle Newsletter wird geladen...`;
+  const ragCache = {};
+  await Promise.all(sel.map(async p => {
+    const wissen = await queryRAG(p.anchor_product + ' ' + p.wirksubstanz, s.name, [p.anchor_product, p.bundle_product]);
+    if(wissen) ragCache[p.id] = wissen;
+  }));
+
   for(let i=0;i<sel.length;i++){
     const p=sel[i];
     document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} wird geschrieben...`;
-    const s=getSeason(), kw=getNlKW();
     const utmAnchor = p.anchor_url + (p.anchor_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.anchor_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
     const utmBundle = p.bundle_url + (p.bundle_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.bundle_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
 
-    // RAG für dieses Produkt abfragen
-    document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} – Wirkstoff-Wissen aus Ratgeber wird geladen...`;
-    const ragWissen = await queryRAG(p.anchor_product + ' ' + p.wirksubstanz, s.name, [p.anchor_product, p.bundle_product]);
+    // RAG aus Cache lesen
+    const ragWissen = ragCache[p.id] || null;
     const ragContext = ragWissen ? `
 
 WIRKSTOFF-WISSEN AUS UNSEREM RATGEBER (PFLICHT: nutze diese echten Fakten, erfinde KEINE Wirkstoffe!):
@@ -556,8 +563,6 @@ ${ragWissen.wirkstoffe ? ragWissen.wirkstoffe.map(w => `- ${w.name}: ${w.wirkung
 Saisonaler Bezug aus dem Ratgeber: ${ragWissen.saison_fakt || ''}
 
 WICHTIG: Nenne im Newsletter NUR Wirkstoffe die oben im Ratgeber-Wissen stehen. Erfinde KEINE weiteren Inhaltsstoffe!` : '';
-
-    document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} wird geschrieben...`;
 
     const prompt=`Schreibe einen Newsletter für Vierbeinerglück mit folgenden EXAKTEN Daten:
 
