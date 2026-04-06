@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v21 Generator · Vierbeinerglück</title>
+<title>Newsletter Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -531,6 +531,7 @@ async function generateNewsletters(){
 
     // RAG aus Cache lesen
     const ragWissen = ragCache[p.id] || null;
+    const story = getUniqueStoryElements(i);
     const ragContext = ragWissen ? `
 
 WIRKSTOFF-WISSEN AUS UNSEREM RATGEBER (PFLICHT: nutze diese echten Fakten, erfinde KEINE Wirkstoffe!):
@@ -574,8 +575,7 @@ STRIKTE REGELN:
 - Antworte NUR mit validem HTML, kein Markdown`;
 
     try{
-      const story = getUniqueStoryElements(i);
-    const freshMessages=[{role:'user',content:prompt}];
+      const freshMessages=[{role:'user',content:prompt}];
       const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:freshMessages})});
       const d=await r.json();
       let html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
