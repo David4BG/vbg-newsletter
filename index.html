@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v16 Generator · Vierbeinerglück</title>
+<title>Newsletter v17 Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -359,37 +359,18 @@ async function generateProposals(){
   proposals=[]; accepted=new Set(); history=[];
   const s=getSeason(), kw=getKW();
 
-  // RAG-Wissen für Saison abfragen
-  document.getElementById('propLoading').querySelector('div+*') ? null : null;
-  const saionQuery = s.zecken ? 'Zeckenschutz natürliche Parasiten Abwehr' : 
-    s.name.includes('Herbst') ? 'Fellwechsel Immunsystem Herbst' :
-    s.name.includes('Winter') ? 'Kälte Gelenke Immunschutz Winter' :
-    s.name.includes('Sommer') ? 'Ausdauer Detox Sommer Hund' : 'Frühjahr Vitalität Fellwechsel';
-  
-  const topProducts = products.filter(p=>{
-    const ex=['set','messe','duo','trio','kombi','bundle','ebook','buch'];
-    return !ex.some(x=>p.title.toLowerCase().includes(x));
-  }).slice(0,3).map(p=>p.title);
-  
-  const ragWissen = await queryRAG(saionQuery, s.name, topProducts);
-  
-  const ragContext = ragWissen ? `
-WIRKSTOFF-WISSEN AUS UNSEREM RATGEBER (nutze das für fundierte Vorschläge):
-${ragWissen.wirkstoffe ? ragWissen.wirkstoffe.map(w => `- ${w.name}: ${w.wirkung}`).join('\n') : ''}
-Überraschender Bildungs-Fakt für Newsletter-Teaser: ${ragWissen.bildungs_fakt || ''}
-Saisonaler Bezug: ${ragWissen.saison_fakt || ''}` : '';
-
   const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
 Fokus: ${s.focus}
 
 Verfügbare Kernprodukte mit echten Preisen und URLs:
 ${buildCtx()}
-${ragContext}
 
 Erstelle 4 Newsletter-Vorschläge passend zur aktuellen Saison.
 ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen (Zeckensaison-Hochphase)!':''}
 
-ABSOLUTE PFLICHT: Verwende NUR Produkte aus der obigen Liste. Jeder Produktname muss EXAKT so geschrieben sein wie in der Liste. Erfinde NIEMALS neue Produkte, Produktnamen oder Preise. Wenn du ein Produkt nicht in der Liste findest, nimm ein anderes aus der Liste.
+ABSOLUTE PFLICHT: Verwende NUR Produkte aus der obigen Liste. Jeder Produktname muss EXAKT so geschrieben sein wie in der Liste. Erfinde NIEMALS neue Produkte, Produktnamen oder Preise.
+
+WIRKSUBSTANZ im JSON-Feld: Nenne NUR den Hauptwirkstoff des Produkts (z.B. "Schwarzkümmelöl", "Biotin", "Fermentierte Kräuter") – keine erfundenen oder ungenauen Bezeichnungen. Der Teaser soll neugierig machen ohne Wirkstoffe zu nennen.
 
 Antworte NUR mit diesem JSON (kein Markdown davor/danach):
 {"proposals":[
@@ -517,6 +498,20 @@ async function generateNewsletters(){
     const utmAnchor = p.anchor_url + (p.anchor_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.anchor_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
     const utmBundle = p.bundle_url + (p.bundle_url.includes('?')?'&':'?') + `utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${p.id}-${p.bundle_product.toLowerCase().replace(/[^a-z0-9]/g,'-').substring(0,30)}`;
 
+    // RAG für dieses Produkt abfragen
+    document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} – Wirkstoff-Wissen aus Ratgeber wird geladen...`;
+    const ragWissen = await queryRAG(p.anchor_product + ' ' + p.wirksubstanz, s.name, [p.anchor_product, p.bundle_product]);
+    const ragContext = ragWissen ? `
+
+WIRKSTOFF-WISSEN AUS UNSEREM RATGEBER (PFLICHT: nutze diese echten Fakten, erfinde KEINE Wirkstoffe!):
+${ragWissen.wirkstoffe ? ragWissen.wirkstoffe.map(w => `- ${w.name}: ${w.wirkung}`).join('\n') : ''}
+Überraschender Bildungs-Fakt (baue diesen ein!): ${ragWissen.bildungs_fakt || ''}
+Saisonaler Bezug aus dem Ratgeber: ${ragWissen.saison_fakt || ''}
+
+WICHTIG: Nenne im Newsletter NUR Wirkstoffe die oben im Ratgeber-Wissen stehen. Erfinde KEINE weiteren Inhaltsstoffe!` : '';
+
+    document.getElementById('nlLoadTxt').textContent=`Newsletter ${i+1} von ${sel.length} wird geschrieben...`;
+
     const prompt=`Schreibe einen Newsletter für Vierbeinerglück mit folgenden EXAKTEN Daten:
 
 Headline: "${p.headline}"
@@ -536,6 +531,7 @@ Teaser: ${p.teaser}
 CTA: ${p.cta_grund}
 Saison: ${s.name}, KW ${kw}
 ${fb?'Feedback: '+fb:''}
+${ragContext}
 
 STRIKTE REGELN:
 - NUR diese 2 Produkte erwähnen – KEINE weiteren Produkte erfinden
