@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v22 Generator · Vierbeinerglück</title>
+<title>Newsletter Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -239,36 +239,47 @@ const RAG     = '/api/rag';
 
 const CORE = ['GASSI-SCHUTZ','FELL-HAUT-KRALLEN','DENTAL-HYGIENE','DENTAL DROPS','GRAS-KOT','RUHE & GELASSENHEIT','IMMUNE','DETOX','KONZENTRATION','NÄSSE-KÄLTE','GELENK','WIRKSUBSTANZEN'];
 
-const SYS = `Du bist Newsletter-Experte für "Vierbeinerglück" – natürliche Hundeprodukte (Sari's Linie).
+const SYS = `Du bist Newsletter-Texter für "VierBeinerGlück" – natürliche Hundeprodukte (Sari's Linie).
 TONALITÄT: Kompetenter Hundefreund, nie Verkäufer. Du-Form. Freundschaftlich. Bildungsauftrag.
-STRUKTUR (Ogilvy): Wirksubstanz-Headline → neugierige Einleitung → Story → Produktplatzierung → CTA mit Dringlichkeit.
+STRUKTUR (Ogilvy): Wirksubstanz-Headline → neugierige Einleitung → Story → Produktplatzierung → Abschluss.
 
-PRODUKTNAMEN: Die Produkte heißen "Drops" – das sind FESTE Drops, NICHT flüssig. Niemals "Tropfen" schreiben, immer "Drops". Produktnamen exakt so verwenden wie übergeben.
+PRODUKTNAMEN: Produkte heißen "Drops" – FEST, NICHT flüssig. Niemals "Tropfen". Exakt so schreiben wie übergeben.
+KEIN JAHR: Niemals konkrete Jahreszahl. Stattdessen: "diese Saison", "aktuell", "in diesem Frühling".
+KEINE WIRKUNGSVERSPRECHEN: Kein "81%", "100%", "schützt sicher", "verhindert". Stattdessen: "kann unterstützen", "viele berichten", "wird traditionell eingesetzt".
+STORY: Verwende EXAKT die übergebenen Story-Elemente (Person, Stadt, Hund, Rasse).
 
-AKTUELLES JAHR: Schreibe niemals ein konkretes Jahr in den Newsletter-Text. Nutze "diese Saison", "aktuell", "in diesem Frühling" etc.
+OUTPUT: Antworte AUSSCHLIESSLICH mit validem JSON – kein Markdown, keine Erklärungen, nur JSON.
 
-RECHTLICHE PFLICHT – KEINE WIRKUNGSVERSPRECHEN:
-- NIEMALS prozentuale Wirksamkeitsangaben (kein "81%", "98%", "100%")
-- NIEMALS absolute Versprechen wie "schützt sicher" oder "verhindert Zeckenbisse"
-- Stattdessen: "kann unterstützen", "viele Hundehalter berichten", "wird traditionell eingesetzt"
-- Kein Heil- oder Wirkungsversprechen – auch nicht indirekt
-
-STORY: Verwende EXAKT die Story-Elemente die dir im Prompt mitgegeben werden (Person, Stadt, Hund, Rasse). Erfinde keine anderen.
-
-HTML-OUTPUT REGELN:
-- Liefere NUR den reinen Body-Inhalt – KEIN <html>, <head>, <body>, <style> Tag
-- Das Listmonk-Template kümmert sich um Layout, Header und Footer
-- Erlaubte Tags: <h1>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <a>, <img>, <blockquote>, <hr>
-- Alle Links: style="color:#c9a84c!important;text-decoration:none!important;"
-- Blockquotes IMMER mit inline Style: <blockquote style="border-left:3px solid #c9a84c;margin:24px 0;padding:12px 20px;background:rgba(201,168,76,0.06);color:#dedad2;">
-- Produktpreis: <p style="font-size:20px;font-weight:500;color:#c9a84c;margin:8px 0 16px 0;">XX.XX EUR</p>
-
-CTA-BUTTONS – exakt so (span wichtig für sichtbaren Text!):
-<table cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0;"><tr><td style="background-color:#c9a84c;border-radius:2px;padding:0;"><a href="URL" style="display:inline-block;background-color:#c9a84c;color:#0f2318!important;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.15em;text-transform:uppercase;text-decoration:none!important;padding:14px 36px;"><span style="color:#0f2318!important;font-size:12px;font-weight:bold;letter-spacing:0.15em;">BUTTON TEXT</span></a></td></tr></table>
-
-NIEMALS einbauen: Footer, Copyright, Adresse, Abmelde-Links, Header mit Logo.
-
-PERSÖNLICHE ANREDE: Beginne IMMER mit: <p>Hallo [VORNAME],</p>`
+JSON-STRUKTUR:
+{
+  "anrede": "Hallo [VORNAME],",
+  "headline": "Haupt-Überschrift des Newsletters",
+  "intro": "2-3 Sätze Einstieg – neugierig, saisonal, keine Produkte",
+  "story": "3-4 Sätze Kundengeschichte mit den übergebenen Namen/Rasse/Stadt",
+  "wirkstoff_abschnitt": {
+    "titel": "Zwischenüberschrift warum der Wirkstoff besonders ist",
+    "text": "2-3 Sätze Erklärung des Wirkstoffs aus dem Ratgeber"
+  },
+  "zitat": "Kundenzitat in Anführungszeichen – realistisch, nicht übertrieben – Person und Ort am Ende",
+  "bullet_punkte": ["Punkt 1 mit Wirkstoff und Nutzen", "Punkt 2", "Punkt 3"],
+  "produkt1": {
+    "label": "Kurzer Anreißer-Satz vor dem Produkt",
+    "name": "EXAKTER PRODUKTNAME",
+    "beschreibung": "1-2 Sätze Produktbeschreibung ohne Wirkungsversprechen",
+    "preis": "XX.XX EUR",
+    "cta_text": "CTA BUTTON TEXT IN GROSSBUCHSTABEN"
+  },
+  "überleitung": "1-2 Sätze natürliche Überleitung zum zweiten Produkt",
+  "produkt2": {
+    "label": "Kurzer Anreißer-Satz",
+    "name": "EXAKTER PRODUKTNAME",
+    "beschreibung": "1-2 Sätze",
+    "preis": "XX.XX EUR",
+    "cta_text": "CTA BUTTON TEXT"
+  },
+  "abschluss": "1-2 Sätze warmherziger Abschluss, saisonal",
+  "gruss": "Liebe Grüße,\nDein Team von VierBeinerGlück 🌿"
+}`
 
 let products=[], proposals=[], accepted=new Set(), generatedNLs=[], currentIdx=0, history=[], publishedMap={};
 
@@ -579,9 +590,13 @@ STRIKTE REGELN:
       const freshMessages=[{role:'user',content:prompt}];
       const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:freshMessages})});
       const d=await r.json();
-      let html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
-      html=html.replace('[VORNAME]','{{ if .Subscriber.FirstName }}{{ .Subscriber.FirstName }}{{ else }}Hundefreund{{ end }}');
-      generatedNLs.push({id:p.id,headline:p.headline,html,bildPrompt:p.bild_prompt_en||'Happy dog outdoors, natural light, no text, landscape 600x300',published:false,versand_datum:p.versand_datum||'',versand_label:p.versand_label||''});
+      let rawText=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+      let nlJson;
+      try { nlJson = JSON.parse(rawText); } catch(e) {
+        // Fallback falls Claude doch HTML liefert
+        nlJson = null;
+      }
+      generatedNLs.push({id:p.id,headline:p.headline,nlJson,rawHtml:nlJson?null:rawText,bildPrompt:p.bild_prompt_en||'Happy dog outdoors in nature, natural light, no text, landscape format',published:false,versand_datum:p.versand_datum||'',versand_label:p.versand_label||''});
     }catch(e){
       generatedNLs.push({id:p.id,headline:p.headline,html:`<p style="color:red">Fehler: ${e.message}</p>`,bildPrompt:'',published:false});
     }
@@ -664,14 +679,15 @@ function showNL(i){
     t.style.background=j===i?'rgba(201,168,76,0.15)':'transparent';
     t.style.borderColor=j===i?'rgba(201,168,76,0.5)':'';
   });
-  document.getElementById('previewFrame').srcdoc=getTemplateHtml(generatedNLs[i].html);
+  document.getElementById('previewFrame').srcdoc=getTemplateHtml(generatedNLs[i].nlJson ? jsonToPreviewHtml(generatedNLs[i].nlJson) : (generatedNLs[i].rawHtml||''));
   const btn=document.getElementById('btnPublish');
   btn.textContent=generatedNLs[i].published?'✓ Bereits veröffentlicht':'In Listmonk veröffentlichen →';
   btn.disabled=generatedNLs[i].published;
 }
 
 function copyHTML(){
-  navigator.clipboard.writeText(generatedNLs[currentIdx].html)
+  const copyData = generatedNLs[currentIdx].nlJson ? JSON.stringify(generatedNLs[currentIdx].nlJson,null,2) : generatedNLs[currentIdx].rawHtml;
+  navigator.clipboard.writeText(copyData)
     .then(()=>{showStatus('HTML in Zwischenablage kopiert!','s-ok');setTimeout(hideStatus,2500);});
 }
 
@@ -688,13 +704,16 @@ async function revise(){
   document.getElementById('nlLoadTxt').textContent='Wird überarbeitet...';
   document.getElementById('nlResult').style.display='none';
 
-  history.push({role:'user',content:`Überarbeite NL ${generatedNLs[currentIdx].id}: ${fb}\n\nAntworte NUR mit vollständigem HTML.`});
+  const currentJson = generatedNLs[currentIdx].nlJson ? JSON.stringify(generatedNLs[currentIdx].nlJson) : '';
+  history.push({role:'user',content:`Überarbeite diesen Newsletter: ${fb}\n\nAktuelles JSON: ${currentJson}\n\nGib das überarbeitete JSON zurück (gleiches Format, kein Markdown).`});
   try{
     const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:history})});
     const d=await r.json();
-    const html=d.content.map(b=>b.text||'').join('').replace(/```html|```/g,'').trim();
-    history.push({role:'assistant',content:html});
-    generatedNLs[currentIdx].html=html;
+    const rawText=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    let revisedJson; try{ revisedJson=JSON.parse(rawText); }catch(e){ revisedJson=null; }
+    history.push({role:'assistant',content:rawText});
+    generatedNLs[currentIdx].nlJson=revisedJson;
+    generatedNLs[currentIdx].rawHtml=revisedJson?null:rawText;
     generatedNLs[currentIdx].published=false;
     document.getElementById('reviseTxt').value='';
   }catch(e){showStatus('Fehler: '+e.message,'s-err');}
@@ -709,7 +728,7 @@ async function publishNL(nl, idx){
     const r=await fetch(PUBLISH,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({betreff:nl.headline,headline:nl.headline,html:nl.html,kw,nl_nummer:nl.id,bild_prompt:nl.bildPrompt,versand_datum:nl.versand_datum||''})
+      body:JSON.stringify({betreff:nl.headline,headline:nl.headline,html:nl.rawHtml||'',nl_json:nl.nlJson||null,kw,nl_nummer:nl.id,bild_prompt:nl.bildPrompt,versand_datum:nl.versand_datum||''})
     });
     const d=await r.json();
     generatedNLs[idx].published=true;
