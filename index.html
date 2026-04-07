@@ -887,6 +887,16 @@ async function generateNewsletters(){
 
   const kw=getNlKW(), s=getSeason(kw);
 
+  // Shopify-Produkte frisch laden (Preise könnten sich geändert haben)
+  try {
+    document.getElementById('nlLoadTxt').textContent='Shopify-Preise aktualisieren...';
+    const sr=await fetch(SHOPIFY);
+    const sd=await sr.json();
+    const arr=Array.isArray(sd)?sd:(sd.products||[]);
+    products=arr.filter(p=>!p.title.toLowerCase().includes('messe')&&p.variants?.[0]);
+    console.log(`Shopify refresh: ${products.length} Produkte geladen`);
+  } catch(e) { console.warn('Shopify refresh fehlgeschlagen, nutze gecachte Daten:', e.message); }
+
   // RAG parallel vorladen
   document.getElementById('nlLoadTxt').textContent=`Wirkstoff-Wissen für alle Newsletter wird geladen...`;
   const ragCache = {};
@@ -1018,41 +1028,9 @@ STRIKTE REGELN:
         }
       }
 
-      // Sicherheitsfix: Anrede darf nie einen konkreten Story-Namen enthalten
-      if (nlJson && nlJson.anrede) {
-        if (!nlJson.anrede.includes('Hundefreund')) {
-          console.warn(`Anrede enthielt keinen "Hundefreund"-Platzhalter: "${nlJson.anrede}" – wird korrigiert`);
-          nlJson.anrede = 'Hallo Hundefreund,';
-        }
-      }
-
-      // Konsistenz-Check: Prüfe ob unerwartete/fremde Namen in den Texten vorkommen
-      if (nlJson && brauchtStory) {
-        const erlaubteNamen = [story.hund, story.person, story.tierarzt, 'Hundefreund', 'VierBeinerGlück', 'Sari'].map(n => n.toLowerCase());
-        const alleTexte = [nlJson.headline, nlJson.intro, nlJson.story, nlJson.zitat, nlJson.abschluss,
-          nlJson.wirkstoff_abschnitt?.text, nlJson.wirkstoff_abschnitt?.titel].filter(Boolean).join(' ');
-
-        // Prüfe bekannte Hundenamen aus dem Pool die NICHT der zugewiesene sind
-        const alleHundenamen = ['Bello','Luna','Rocky','Mia','Max','Lotte','Bruno','Nala','Finn','Zara','Oscar','Emma','Thor','Cleo','Rudi','Hera','Kira','Rex','Bella','Buddy'];
-        const fremdeHunde = alleHundenamen.filter(h => h !== story.hund && alleTexte.includes(h));
-        if (fremdeHunde.length > 0) {
-          console.warn(`Konsistenz-Problem: Fremde Hundenamen gefunden: ${fremdeHunde.join(', ')} (erwartet: ${story.hund}). Ersetze...`);
-          // Ersetze fremde Hundenamen durch den richtigen
-          for (const fremd of fremdeHunde) {
-            const regex = new RegExp('\\b' + fremd + '\\b', 'g');
-            if (nlJson.headline) nlJson.headline = nlJson.headline.replace(regex, story.hund);
-            if (nlJson.intro) nlJson.intro = nlJson.intro.replace(regex, story.hund);
-            if (nlJson.story) nlJson.story = nlJson.story.replace(regex, story.hund);
-            if (nlJson.zitat) nlJson.zitat = nlJson.zitat.replace(regex, story.hund);
-            if (nlJson.abschluss) nlJson.abschluss = nlJson.abschluss.replace(regex, story.hund);
-          }
-        }
-
-        // Prüfe ob der zugewiesene Hundename überhaupt vorkommt (Headline+Story)
-        const hundInText = alleTexte.toLowerCase().includes(story.hund.toLowerCase());
-        if (!hundInText) {
-          console.info(`Hinweis: Hundename "${story.hund}" kommt nicht im Text vor – kein Problem wenn die Story allgemein gehalten ist.`);
-        }
+      // Alle Sicherheitschecks durchlaufen
+      if (nlJson) {
+        nlJson = sanitizeNewsletter(nlJson, brauchtStory ? story : null);
       }
 
       generatedNLs.push({
@@ -1319,9 +1297,29 @@ async function revise(){
 
   const currentJson = generatedNLs[currentIdx].nlJson ? JSON.stringify(generatedNLs[currentIdx].nlJson) : '';
 
+  // Produktliste mit echten Preisen und URLs mitgeben
+  const produktListe = products.filter(p => {
+    const t = p.title.toLowerCase();
+    return !['messe','ebook','buch bundle'].some(x => t.includes(x));
+  }).map(p => `- ${p.title} | ${p.variants[0].price} EUR | ${SHOP}${p.handle}`).join('\n');
+
   try{
     const reviseMessages = [
-      {role:'user', content:`Hier ist ein Newsletter-JSON das überarbeitet werden soll:\n\n${currentJson}\n\nÄnderungswunsch: ${fb}\n\nGib das überarbeitete JSON zurück. NUR das JSON-Objekt, kein Markdown, keine Codeblöcke, kein Text davor/danach.`}
+      {role:'user', content:`Hier ist ein Newsletter-JSON das überarbeitet werden soll:
+
+${currentJson}
+
+Änderungswunsch: ${fb}
+
+VERFÜGBARE PRODUKTE MIT ECHTEN PREISEN (verwende NUR diese Preise!):
+${produktListe}
+
+WICHTIG bei Produktänderungen:
+- Wenn du ein Produkt austauschst, verwende EXAKT den Produktnamen und den EXAKTEN Preis aus der obigen Liste.
+- Erfinde NIEMALS einen Preis. Wenn du den Preis nicht in der Liste findest, ändere das Produkt nicht.
+- Das Format für Preise ist immer: "XX.XX EUR" (exakt wie in der Liste).
+
+Gib das überarbeitete JSON zurück. NUR das JSON-Objekt, kein Markdown, keine Codeblöcke, kein Text davor/danach.`}
     ];
     const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:reviseMessages})});
     if (!r.ok) throw new Error(`API-Fehler ${r.status}`);
@@ -1332,8 +1330,13 @@ async function revise(){
     let revisedJson;
     try{ revisedJson=JSON.parse(rawText); }catch(e){ revisedJson=null; console.error('Revise parse failed:', e); }
     if (revisedJson) {
+      // Alle Sicherheitschecks (Anrede, Preise, Konsistenz, Jahreszahlen)
+      revisedJson = sanitizeNewsletter(revisedJson, null);
       generatedNLs[currentIdx].nlJson = revisedJson;
       generatedNLs[currentIdx].published = false;
+
+      // Wenn Produkt geändert wurde, auch die URLs aktualisieren
+      updateProductUrls(currentIdx, revisedJson);
     } else {
       showStatus('Überarbeitung fehlgeschlagen – JSON konnte nicht geparst werden.','s-err');
     }
@@ -1342,6 +1345,226 @@ async function revise(){
   document.getElementById('nlLoading').style.display='none';
   document.getElementById('nlResult').style.display='block';
   renderTabs(); showNL(currentIdx);
+}
+
+/** Zentrale Qualitätssicherung – läuft nach jeder Generierung UND nach jedem Revise */
+function sanitizeNewsletter(nlJson, story) {
+  if (!nlJson) return nlJson;
+
+  // 1. Anrede-Check: Muss "Hundefreund" enthalten
+  if (nlJson.anrede && !nlJson.anrede.includes('Hundefreund')) {
+    console.warn(`Anrede korrigiert: "${nlJson.anrede}" → "Hallo Hundefreund,"`);
+    nlJson.anrede = 'Hallo Hundefreund,';
+  }
+
+  // 2. Preis-Validierung gegen Shopify
+  nlJson = validateProductPrices(nlJson);
+
+  // 3. Konsistenz-Check: Fremde Hundenamen ersetzen (nur wenn Story aktiv)
+  if (story) {
+    const alleTexte = [nlJson.headline, nlJson.intro, nlJson.story, nlJson.zitat, nlJson.abschluss,
+      nlJson.wirkstoff_abschnitt?.text, nlJson.wirkstoff_abschnitt?.titel].filter(Boolean).join(' ');
+    const alleHundenamen = ['Bello','Luna','Rocky','Mia','Max','Lotte','Bruno','Nala','Finn','Zara','Oscar','Emma','Thor','Cleo','Rudi','Hera','Kira','Rex','Bella','Buddy'];
+    const fremdeHunde = alleHundenamen.filter(h => h !== story.hund && alleTexte.includes(h));
+    if (fremdeHunde.length > 0) {
+      console.warn(`Konsistenz: Fremde Hundenamen ${fremdeHunde.join(', ')} → ${story.hund}`);
+      const textFelder = ['headline','intro','story','zitat','abschluss'];
+      for (const fremd of fremdeHunde) {
+        const regex = new RegExp('\\b' + fremd + '\\b', 'g');
+        textFelder.forEach(f => { if (nlJson[f]) nlJson[f] = nlJson[f].replace(regex, story.hund); });
+      }
+    }
+  }
+
+  // 4. Leere Pflichtfelder auffangen
+  if (!nlJson.anrede) nlJson.anrede = 'Hallo Hundefreund,';
+  if (!nlJson.gruss) nlJson.gruss = 'Liebe Grüße,\nDein Team von VierBeinerGlück 🌿';
+
+  // 5. Jahreszahlen entfernen (Regel: keine konkreten Jahre)
+  const jahrRegex = /\b(202\d|203\d)\b/g;
+  const textFelder = ['headline','intro','story','abschluss','zitat'];
+  textFelder.forEach(f => {
+    if (nlJson[f] && jahrRegex.test(nlJson[f])) {
+      console.warn(`Jahreszahl in "${f}" gefunden – wird entfernt`);
+      nlJson[f] = nlJson[f].replace(jahrRegex, '').replace(/\s{2,}/g, ' ').trim();
+    }
+  });
+
+  // 6. Produkt-Existenz prüfen – Warnung wenn Produkt nicht in Shopify gefunden
+  const allProds = products.filter(p => !['messe','ebook','buch bundle'].some(x => p.title.toLowerCase().includes(x)));
+  ['produkt1', 'produkt2'].forEach(key => {
+    const prod = nlJson[key];
+    if (!prod || !prod.name) return;
+    const match = allProds.find(p => {
+      const pn = p.title.toLowerCase();
+      const jn = prod.name.toLowerCase();
+      return pn.includes(jn.substring(0, 10)) || jn.includes(pn.substring(0, 10));
+    });
+    if (!match) {
+      console.error(`⚠️ Produkt "${prod.name}" existiert nicht in Shopify!`);
+      // Ersetze durch ein zufälliges Einzelprodukt
+      const singles = allProds.filter(p => !['set','duo','trio','kombi','bundle'].some(x => p.title.toLowerCase().includes(x)));
+      if (singles.length > 0) {
+        const fallback = singles[Math.floor(Math.random() * singles.length)];
+        console.warn(`Auto-Korrektur: "${prod.name}" → "${fallback.title}"`);
+        prod.name = fallback.title;
+        prod.preis = fallback.variants[0].price + ' EUR';
+      }
+    }
+  });
+
+  // 7. Doppelte Produkte verhindern – Produkt1 und Produkt2 dürfen nicht identisch sein
+  if (nlJson.produkt1?.name && nlJson.produkt2?.name) {
+    const name1 = nlJson.produkt1.name.toLowerCase();
+    const name2 = nlJson.produkt2.name.toLowerCase();
+    if (name1 === name2 || name1.includes(name2.substring(0, 10)) && name2.includes(name1.substring(0, 10))) {
+      console.warn(`Doppeltes Produkt erkannt: "${nlJson.produkt1.name}" = "${nlJson.produkt2.name}"`);
+      // Ersetze Produkt 2 durch ein anderes Einzelprodukt
+      const singles = allProds.filter(p => {
+        const t = p.title.toLowerCase();
+        return !['set','duo','trio','kombi','bundle'].some(x => t.includes(x)) && !t.includes(name1.substring(0, 10));
+      });
+      if (singles.length > 0) {
+        const alt = singles[Math.floor(Math.random() * singles.length)];
+        console.warn(`Produkt 2 ersetzt: "${nlJson.produkt2.name}" → "${alt.title}"`);
+        nlJson.produkt2.name = alt.title;
+        nlJson.produkt2.preis = alt.variants[0].price + ' EUR';
+        nlJson.produkt2.beschreibung = '';
+        nlJson.produkt2.label = '';
+      }
+    }
+  }
+
+  // 8. "Tropfen" → "Drops" korrigieren (Produkte heißen IMMER "Drops", nie "Tropfen")
+  const tropfenFelder = ['headline','intro','story','abschluss','zitat','überleitung',
+    'produkt1.beschreibung','produkt1.label','produkt2.beschreibung','produkt2.label'];
+  tropfenFelder.forEach(path => {
+    const parts = path.split('.');
+    let obj = nlJson;
+    for (let i = 0; i < parts.length - 1; i++) { obj = obj?.[parts[i]]; }
+    const lastKey = parts[parts.length - 1];
+    if (obj && typeof obj[lastKey] === 'string' && /tropfen/i.test(obj[lastKey])) {
+      console.warn(`"Tropfen" in "${path}" gefunden – wird zu "Drops" korrigiert`);
+      obj[lastKey] = obj[lastKey].replace(/Tropfen/g, 'Drops').replace(/tropfen/g, 'Drops');
+    }
+  });
+  // Auch in Wirkstoff-Abschnitt
+  if (nlJson.wirkstoff_abschnitt) {
+    ['titel','text'].forEach(k => {
+      if (nlJson.wirkstoff_abschnitt[k] && /tropfen/i.test(nlJson.wirkstoff_abschnitt[k])) {
+        nlJson.wirkstoff_abschnitt[k] = nlJson.wirkstoff_abschnitt[k].replace(/Tropfen/g, 'Drops').replace(/tropfen/g, 'Drops');
+      }
+    });
+  }
+  // Auch Bullet-Punkte
+  if (nlJson.bullet_punkte) {
+    nlJson.bullet_punkte = nlJson.bullet_punkte.map(bp => bp.replace(/Tropfen/g, 'Drops').replace(/tropfen/g, 'Drops'));
+  }
+
+  // 9. Wirkungsversprechen abschwächen (rechtlich relevant!)
+  const verbotenePhrasen = [
+    [/schützt sicher/gi, 'kann unterstützend wirken'],
+    [/verhindert\s/gi, 'kann dazu beitragen, '],
+    [/heilt\s/gi, 'kann unterstützen bei '],
+    [/garantiert\s/gi, 'kann erfahrungsgemäß '],
+    [/100\s*%/g, 'auf natürliche Weise'],
+    [/klinisch (bewiesen|erwiesen|belegt)/gi, 'traditionell eingesetzt'],
+    [/wissenschaftlich (bewiesen|erwiesen|belegt)/gi, 'erfahrungsgemäß geschätzt'],
+    [/wirkt gegen/gi, 'kann unterstützend wirken bei'],
+    [/beseitigt/gi, 'kann helfen bei'],
+    [/eliminiert/gi, 'kann unterstützend wirken gegen'],
+    [/bekämpft/gi, 'kann unterstützen bei'],
+    [/tötet.*ab/gi, 'kann auf natürliche Weise unterstützen'],
+    [/nachweislich/gi, 'erfahrungsgemäß'],
+    [/\b(\d{2,3})\s*%\s*(der |aller )?(Hunde|Kunden|Anwender|Tierärzte|Besitzer)/gi, 'viele $3'],
+  ];
+  const alleTextFelder = ['headline','intro','story','abschluss','zitat','überleitung'];
+  alleTextFelder.forEach(f => {
+    if (!nlJson[f]) return;
+    verbotenePhrasen.forEach(([regex, ersatz]) => {
+      if (regex.test(nlJson[f])) {
+        console.warn(`Wirkungsversprechen in "${f}" korrigiert: ${regex}`);
+        regex.lastIndex = 0; // Reset regex state
+        nlJson[f] = nlJson[f].replace(regex, ersatz);
+      }
+    });
+  });
+  // Auch in Wirkstoff-Abschnitt und Bullet-Punkten
+  if (nlJson.wirkstoff_abschnitt?.text) {
+    verbotenePhrasen.forEach(([regex, ersatz]) => {
+      regex.lastIndex = 0;
+      nlJson.wirkstoff_abschnitt.text = nlJson.wirkstoff_abschnitt.text.replace(regex, ersatz);
+    });
+  }
+  if (nlJson.bullet_punkte) {
+    nlJson.bullet_punkte = nlJson.bullet_punkte.map(bp => {
+      verbotenePhrasen.forEach(([regex, ersatz]) => { regex.lastIndex = 0; bp = bp.replace(regex, ersatz); });
+      return bp;
+    });
+  }
+  if (nlJson.produkt1?.beschreibung) {
+    verbotenePhrasen.forEach(([regex, ersatz]) => { regex.lastIndex = 0; nlJson.produkt1.beschreibung = nlJson.produkt1.beschreibung.replace(regex, ersatz); });
+  }
+  if (nlJson.produkt2?.beschreibung) {
+    verbotenePhrasen.forEach(([regex, ersatz]) => { regex.lastIndex = 0; nlJson.produkt2.beschreibung = nlJson.produkt2.beschreibung.replace(regex, ersatz); });
+  }
+
+  return nlJson;
+}
+
+/** Prüft und korrigiert Produktpreise im JSON gegen Shopify-Daten */
+function validateProductPrices(nlJson) {
+  const allProds = products.filter(p => !['messe','ebook','buch bundle'].some(x => p.title.toLowerCase().includes(x)));
+
+  ['produkt1', 'produkt2'].forEach(key => {
+    const prod = nlJson[key];
+    if (!prod || !prod.name) return;
+
+    // Finde passendes Shopify-Produkt
+    const match = allProds.find(p => {
+      const pName = p.title.toLowerCase();
+      const jsonName = prod.name.toLowerCase();
+      // Flexibler Match: mindestens die ersten 10 Zeichen oder Kernwörter
+      return pName.includes(jsonName.substring(0, 10)) || jsonName.includes(pName.substring(0, 10));
+    });
+
+    if (match) {
+      const realPrice = match.variants[0].price;
+      const jsonPrice = prod.preis.replace(/[^0-9.,]/g, '').replace(',', '.');
+      if (jsonPrice !== realPrice) {
+        console.warn(`Preis-Korrektur ${key}: "${prod.preis}" → "${realPrice} EUR" (Shopify: ${match.title})`);
+        prod.preis = `${realPrice} EUR`;
+      }
+      // Auch Produktnamen exakt korrigieren
+      if (prod.name !== match.title) {
+        console.info(`Produktname korrigiert: "${prod.name}" → "${match.title}"`);
+        prod.name = match.title;
+      }
+    } else {
+      console.warn(`Produkt "${prod.name}" nicht in Shopify gefunden – Preis nicht validierbar!`);
+    }
+  });
+
+  return nlJson;
+}
+
+/** Aktualisiert anchor_url und bundle_url wenn Produkte geändert wurden */
+function updateProductUrls(idx, nlJson) {
+  const kw = getNlKW();
+  const nl = generatedNLs[idx];
+  const allProds = products.filter(p => !['messe','ebook','buch bundle'].some(x => p.title.toLowerCase().includes(x)));
+
+  ['produkt1', 'produkt2'].forEach((key, i) => {
+    const prod = nlJson[key];
+    if (!prod || !prod.name) return;
+    const match = allProds.find(p => p.title.toLowerCase().includes(prod.name.toLowerCase().substring(0, 10)));
+    if (match) {
+      const baseUrl = SHOP + match.handle;
+      const utmUrl = baseUrl + `?utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${nl.id}-${match.handle.substring(0, 30)}`;
+      if (i === 0) nl.anchor_url = utmUrl;
+      else nl.bundle_url = utmUrl;
+    }
+  });
 }
 
 /** Sendet nl_json an den n8n-Workflow (Webhook) */
