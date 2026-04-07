@@ -396,8 +396,11 @@ Antworte NUR mit diesem JSON (kein Markdown davor/danach, keine Codeblöcke):
 
   history.push({role:'user',content:prompt});
   try{
-    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:history})});
-    const d=await r.json();
+    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:history})});
+    if (!r.ok) throw new Error(`API-Fehler ${r.status}`);
+    const rtxt = await r.text();
+    if (!rtxt) throw new Error('Leere Response');
+    const d = JSON.parse(rtxt);
     const txt=extractJSON(d);
     history.push({role:'assistant',content:txt});
     proposals=JSON.parse(txt).proposals;
@@ -434,24 +437,91 @@ Antworte NUR mit diesem JSON (kein Markdown davor/danach, keine Codeblöcke):
   }
 }
 
-/** Robustes JSON-Extrahieren aus Claude-Response – entfernt Markdown-Wrapper und Textartefakte */
+/** Robustes JSON-Extrahieren aus Claude-Response – entfernt Markdown-Wrapper, repariert abgeschnittenes JSON */
 function extractJSON(apiResponse) {
+  if (!apiResponse || !apiResponse.content) {
+    throw new Error('Leere API-Response erhalten');
+  }
   let raw = apiResponse.content.map(b => b.text || '').join('');
-  // Entferne Markdown-Codeblöcke (```json ... ``` oder ``` ... ```)
-  raw = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-  // Falls noch Text vor dem ersten { oder [ steht, abschneiden
+  if (!raw.trim()) throw new Error('Kein Text in API-Response');
+
+  // Entferne Markdown-Codeblöcke
+  raw = raw.replace(/^[\s\S]*?```(?:json)?\s*\n?/i, '').replace(/\n?```[\s\S]*$/i, '').trim();
+  // Falls kein Codeblock vorhanden war, nochmal original nehmen
+  if (!raw.includes('{')) {
+    raw = apiResponse.content.map(b => b.text || '').join('').trim();
+  }
+
+  // Text vor dem ersten { abschneiden
   const firstBrace = raw.indexOf('{');
-  const firstBracket = raw.indexOf('[');
-  let start = -1;
-  if (firstBrace >= 0 && firstBracket >= 0) start = Math.min(firstBrace, firstBracket);
-  else if (firstBrace >= 0) start = firstBrace;
-  else if (firstBracket >= 0) start = firstBracket;
-  if (start > 0) raw = raw.substring(start);
-  // Falls nach dem letzten } oder ] noch Text steht, abschneiden
+  if (firstBrace < 0) throw new Error('Kein JSON-Objekt in Response gefunden');
+  if (firstBrace > 0) raw = raw.substring(firstBrace);
+
+  // Text nach dem letzten } abschneiden
   const lastBrace = raw.lastIndexOf('}');
-  const lastBracket = raw.lastIndexOf(']');
-  const end = Math.max(lastBrace, lastBracket);
-  if (end >= 0 && end < raw.length - 1) raw = raw.substring(0, end + 1);
+  if (lastBrace >= 0 && lastBrace < raw.length - 1) raw = raw.substring(0, lastBrace + 1);
+
+  // Versuche direktes Parsing
+  try { JSON.parse(raw); return raw; } catch(e) { /* weiter mit Reparatur */ }
+
+  // Reparatur: abgeschnittenes JSON vervollständigen
+  console.warn('JSON ist ungültig, versuche Reparatur...');
+  raw = repairJSON(raw);
+  return raw;
+}
+
+/** Versucht abgeschnittenes JSON zu reparieren */
+function repairJSON(raw) {
+  // Entferne abgeschnittenen String am Ende (unvollständiger Value)
+  // z.B. "story": "Die warmen Frühlingstage lock  ← abgeschnitten
+  raw = raw.replace(/,\s*"[^"]*":\s*"[^"]*$/s, '');  // key: "unfinished...
+  raw = raw.replace(/,\s*"[^"]*"\s*$/s, '');           // trailing key without value
+  raw = raw.replace(/,\s*$/s, '');                      // trailing comma
+
+  // Zähle offene/geschlossene Klammern und Brackets
+  let braces = 0, brackets = 0, inString = false, escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (escaped) { escaped = false; continue; }
+    if (c === '\\') { escaped = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === '{') braces++;
+    if (c === '}') braces--;
+    if (c === '[') brackets++;
+    if (c === ']') brackets--;
+  }
+
+  // Schließe offene Klammern
+  while (brackets > 0) { raw += ']'; brackets--; }
+  while (braces > 0) { raw += '}'; braces--; }
+
+  // Prüfe ob es jetzt valide ist
+  try { JSON.parse(raw); return raw; } catch(e) {
+    console.warn('Reparatur Versuch 1 fehlgeschlagen, versuche aggressivere Reparatur');
+  }
+
+  // Aggressivere Reparatur: Schneide ab dem letzten vollständigen Key-Value-Paar ab
+  const lastCompleteValue = raw.lastIndexOf('",');
+  if (lastCompleteValue > 0) {
+    let repaired = raw.substring(0, lastCompleteValue + 1);
+    // Schließe alle offenen Klammern
+    let b2 = 0, br2 = 0, inS2 = false, esc2 = false;
+    for (let i = 0; i < repaired.length; i++) {
+      const c = repaired[i];
+      if (esc2) { esc2 = false; continue; }
+      if (c === '\\') { esc2 = true; continue; }
+      if (c === '"') { inS2 = !inS2; continue; }
+      if (inS2) continue;
+      if (c === '{') b2++; if (c === '}') b2--;
+      if (c === '[') br2++; if (c === ']') br2--;
+    }
+    while (br2 > 0) { repaired += ']'; br2--; }
+    while (b2 > 0) { repaired += '}'; b2--; }
+    try { JSON.parse(repaired); return repaired; } catch(e2) { /* weiter */ }
+  }
+
+  // Letzter Versuch: gib das Beste zurück was wir haben
   return raw;
 }
 
@@ -603,24 +673,35 @@ STRIKTE REGELN:
 
     try{
       const freshMessages=[{role:'user',content:prompt}];
-      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:freshMessages})});
-      const d=await r.json();
+      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:freshMessages})});
+      if (!r.ok) throw new Error(`API-Fehler ${r.status}: ${r.statusText}`);
+      const txt = await r.text();
+      if (!txt) throw new Error('Leere Response vom Server');
+      let d;
+      try { d = JSON.parse(txt); } catch(pe) { throw new Error('Server-Response ist kein JSON: ' + txt.substring(0, 100)); }
       const rawText = extractJSON(d);
       let nlJson;
       try { nlJson = JSON.parse(rawText); } catch(e) {
-        console.error('JSON parse failed:', e, 'Raw:', rawText.substring(0, 200));
+        console.error('JSON parse failed:', e, 'Raw:', rawText.substring(0, 300));
         nlJson = null;
       }
 
       if (!nlJson) {
         // Wenn JSON-Parsing fehlschlägt, nochmal versuchen mit strikterem Prompt
         console.warn('Retrying with stricter JSON prompt...');
-        const retryMessages=[{role:'user',content:prompt},{role:'assistant',content:rawText},{role:'user',content:'Das war kein valides JSON. Bitte antworte NUR mit dem JSON-Objekt. Kein Markdown, kein ```json, kein Text davor/danach. Nur {\"anrede\":\"...\", ...}'}];
-        const r2=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:retryMessages})});
-        const d2=await r2.json();
-        const rawText2 = extractJSON(d2);
-        try { nlJson = JSON.parse(rawText2); } catch(e2) {
-          console.error('Retry JSON parse also failed:', e2);
+        const retryMessages=[{role:'user',content:prompt},{role:'assistant',content:rawText.substring(0,2000)},{role:'user',content:'Das war kein valides JSON. Bitte antworte NUR mit dem JSON-Objekt. Kein Markdown, kein ```json, kein Text davor/danach. Halte die Texte kürzer (max 2 Sätze pro Feld). Nur {\"anrede\":\"...\", ...}'}];
+        const r2=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:retryMessages})});
+        if (r2.ok) {
+          const txt2 = await r2.text();
+          if (txt2) {
+            try {
+              const d2 = JSON.parse(txt2);
+              const rawText2 = extractJSON(d2);
+              nlJson = JSON.parse(rawText2);
+            } catch(e2) {
+              console.error('Retry parse also failed:', e2);
+            }
+          }
         }
       }
 
@@ -636,6 +717,7 @@ STRIKTE REGELN:
         versand_label: p.versand_label || ''
       });
     }catch(e){
+      console.error('Newsletter generation error:', e);
       generatedNLs.push({id:p.id,headline:p.headline,nlJson:null,anchor_url:utmAnchor,bundle_url:utmBundle,bildPrompt:'',published:false,error:e.message});
     }
   }
@@ -847,8 +929,11 @@ async function revise(){
     const reviseMessages = [
       {role:'user', content:`Hier ist ein Newsletter-JSON das überarbeitet werden soll:\n\n${currentJson}\n\nÄnderungswunsch: ${fb}\n\nGib das überarbeitete JSON zurück. NUR das JSON-Objekt, kein Markdown, keine Codeblöcke, kein Text davor/danach.`}
     ];
-    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYS,messages:reviseMessages})});
-    const d=await r.json();
+    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:reviseMessages})});
+    if (!r.ok) throw new Error(`API-Fehler ${r.status}`);
+    const rtxt = await r.text();
+    if (!rtxt) throw new Error('Leere Response');
+    const d = JSON.parse(rtxt);
     const rawText = extractJSON(d);
     let revisedJson;
     try{ revisedJson=JSON.parse(rawText); }catch(e){ revisedJson=null; console.error('Revise parse failed:', e); }
