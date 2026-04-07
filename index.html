@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter FINAL Generator · Vierbeinerglück</title>
+<title>Newsletter v24 Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1390,8 +1390,48 @@ function sanitizeNewsletter(nlJson, story) {
     }
   });
 
-  // 6. Produkt-Existenz prüfen – Warnung wenn Produkt nicht in Shopify gefunden
-  const allProds = products.filter(p => !['messe','ebook','buch bundle'].some(x => p.title.toLowerCase().includes(x)));
+  // 6. Set-als-Ankerprodukt verhindern – Produkt1 (Anker) muss IMMER ein Einzelprodukt sein
+  const setKeywordsCheck = ['set','duo','trio','kombi','bundle'];
+  const singlesOnly = allProds.filter(p => !setKeywordsCheck.some(x => p.title.toLowerCase().includes(x)));
+
+  if (nlJson.produkt1?.name) {
+    const p1name = nlJson.produkt1.name.toLowerCase();
+    const p1IsSet = setKeywordsCheck.some(x => p1name.includes(x));
+
+    if (p1IsSet) {
+      console.warn(`⚠️ Set als Ankerprodukt erkannt: "${nlJson.produkt1.name}" – wird korrigiert`);
+
+      // Prüfe ob Produkt2 ein Einzelprodukt ist → dann tauschen
+      const p2name = (nlJson.produkt2?.name || '').toLowerCase();
+      const p2IsSet = setKeywordsCheck.some(x => p2name.includes(x));
+
+      if (!p2IsSet && nlJson.produkt2?.name) {
+        // Tausche Produkt1 und Produkt2
+        console.warn(`Tausche: Anker wird "${nlJson.produkt2.name}", Bundle wird "${nlJson.produkt1.name}"`);
+        const temp = { ...nlJson.produkt1 };
+        nlJson.produkt1 = { ...nlJson.produkt2 };
+        nlJson.produkt2 = temp;
+      } else {
+        // Beide sind Sets oder Produkt2 fehlt → Anker durch Einzelprodukt ersetzen
+        // Versuche ein Einzelprodukt zu finden das im Set enthalten sein könnte
+        const setTitle = p1name;
+        let bestMatch = singlesOnly.find(sp => {
+          const words = sp.title.toLowerCase().replace(/sari'?s?\s*/i,'').replace(/drops/i,'').trim().split(/[\s\-&]+/).filter(w => w.length > 3);
+          return words.some(w => setTitle.includes(w));
+        });
+        if (!bestMatch && singlesOnly.length > 0) {
+          bestMatch = singlesOnly[Math.floor(Math.random() * singlesOnly.length)];
+        }
+        if (bestMatch) {
+          console.warn(`Anker ersetzt: "${nlJson.produkt1.name}" → "${bestMatch.title}"`);
+          nlJson.produkt1.name = bestMatch.title;
+          nlJson.produkt1.preis = bestMatch.variants[0].price + ' EUR';
+        }
+      }
+    }
+  }
+
+  // 7. Produkt-Existenz prüfen – Warnung wenn Produkt nicht in Shopify gefunden
   ['produkt1', 'produkt2'].forEach(key => {
     const prod = nlJson[key];
     if (!prod || !prod.name) return;
@@ -1402,10 +1442,9 @@ function sanitizeNewsletter(nlJson, story) {
     });
     if (!match) {
       console.error(`⚠️ Produkt "${prod.name}" existiert nicht in Shopify!`);
-      // Ersetze durch ein zufälliges Einzelprodukt
-      const singles = allProds.filter(p => !['set','duo','trio','kombi','bundle'].some(x => p.title.toLowerCase().includes(x)));
-      if (singles.length > 0) {
-        const fallback = singles[Math.floor(Math.random() * singles.length)];
+      const fallbackPool = key === 'produkt1' ? singlesOnly : allProds;
+      if (fallbackPool.length > 0) {
+        const fallback = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
         console.warn(`Auto-Korrektur: "${prod.name}" → "${fallback.title}"`);
         prod.name = fallback.title;
         prod.preis = fallback.variants[0].price + ' EUR';
@@ -1413,19 +1452,15 @@ function sanitizeNewsletter(nlJson, story) {
     }
   });
 
-  // 7. Doppelte Produkte verhindern – Produkt1 und Produkt2 dürfen nicht identisch sein
+  // 8. Doppelte Produkte verhindern – Produkt1 und Produkt2 dürfen nicht identisch sein
   if (nlJson.produkt1?.name && nlJson.produkt2?.name) {
     const name1 = nlJson.produkt1.name.toLowerCase();
     const name2 = nlJson.produkt2.name.toLowerCase();
-    if (name1 === name2 || name1.includes(name2.substring(0, 10)) && name2.includes(name1.substring(0, 10))) {
+    if (name1 === name2 || (name1.includes(name2.substring(0, 10)) && name2.includes(name1.substring(0, 10)))) {
       console.warn(`Doppeltes Produkt erkannt: "${nlJson.produkt1.name}" = "${nlJson.produkt2.name}"`);
-      // Ersetze Produkt 2 durch ein anderes Einzelprodukt
-      const singles = allProds.filter(p => {
-        const t = p.title.toLowerCase();
-        return !['set','duo','trio','kombi','bundle'].some(x => t.includes(x)) && !t.includes(name1.substring(0, 10));
-      });
-      if (singles.length > 0) {
-        const alt = singles[Math.floor(Math.random() * singles.length)];
+      const alternatives = singlesOnly.filter(p => !p.title.toLowerCase().includes(name1.substring(0, 10)));
+      if (alternatives.length > 0) {
+        const alt = alternatives[Math.floor(Math.random() * alternatives.length)];
         console.warn(`Produkt 2 ersetzt: "${nlJson.produkt2.name}" → "${alt.title}"`);
         nlJson.produkt2.name = alt.title;
         nlJson.produkt2.preis = alt.variants[0].price + ' EUR';
@@ -1435,7 +1470,28 @@ function sanitizeNewsletter(nlJson, story) {
     }
   }
 
-  // 8. "Tropfen" → "Drops" korrigieren (Produkte heißen IMMER "Drops", nie "Tropfen")
+  // 9. Set als Bundle prüfen: Wenn Produkt2 ein Set ist, muss Produkt1 (Anker) darin enthalten sein
+  if (nlJson.produkt2?.name) {
+    const p2name = nlJson.produkt2.name.toLowerCase();
+    const p2IsSet = setKeywordsCheck.some(x => p2name.includes(x));
+    if (p2IsSet && nlJson.produkt1?.name) {
+      const ankerWords = nlJson.produkt1.name.toLowerCase().replace(/sari'?s?\s*/i,'').replace(/drops/i,'').trim().split(/[\s\-&]+/).filter(w => w.length > 3);
+      const ankerInSet = ankerWords.some(w => p2name.includes(w));
+      if (!ankerInSet) {
+        console.warn(`Set "${nlJson.produkt2.name}" passt nicht zum Anker "${nlJson.produkt1.name}" – ersetze Set durch Einzelprodukt`);
+        const alternatives = singlesOnly.filter(p => !p.title.toLowerCase().includes(nlJson.produkt1.name.toLowerCase().substring(0, 10)));
+        if (alternatives.length > 0) {
+          const alt = alternatives[Math.floor(Math.random() * alternatives.length)];
+          nlJson.produkt2.name = alt.title;
+          nlJson.produkt2.preis = alt.variants[0].price + ' EUR';
+          nlJson.produkt2.beschreibung = '';
+          nlJson.produkt2.label = '';
+        }
+      }
+    }
+  }
+
+  // 10. "Tropfen" → "Drops" korrigieren (Produkte heißen IMMER "Drops", nie "Tropfen")
   const tropfenFelder = ['headline','intro','story','abschluss','zitat','überleitung',
     'produkt1.beschreibung','produkt1.label','produkt2.beschreibung','produkt2.label'];
   tropfenFelder.forEach(path => {
@@ -1461,7 +1517,7 @@ function sanitizeNewsletter(nlJson, story) {
     nlJson.bullet_punkte = nlJson.bullet_punkte.map(bp => bp.replace(/Tropfen/g, 'Drops').replace(/tropfen/g, 'Drops'));
   }
 
-  // 9. Wirkungsversprechen abschwächen (rechtlich relevant!)
+  // 11. Wirkungsversprechen abschwächen (rechtlich relevant!)
   const verbotenePhrasen = [
     [/schützt sicher/gi, 'kann unterstützend wirken'],
     [/verhindert\s/gi, 'kann dazu beitragen, '],
