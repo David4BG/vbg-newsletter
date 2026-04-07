@@ -366,12 +366,44 @@ async function queryRAG(query, saison, produkte){
   return null;
 }
 
+/** Berechnet 4 Versandslots (Mo, Mi, Fr, So um 10:00) für eine KW */
+function getVersandSlots(kw) {
+  // Montag der KW berechnen (ISO 8601: KW1 = Woche mit erstem Donnerstag)
+  const year = new Date().getFullYear();
+  const jan4 = new Date(year, 0, 4); // 4. Januar ist immer in KW1
+  const dayOfWeek = jan4.getDay() || 7; // Sonntag=7
+  const mondayKW1 = new Date(jan4);
+  mondayKW1.setDate(jan4.getDate() - dayOfWeek + 1); // Montag der KW1
+
+  const mondayTarget = new Date(mondayKW1);
+  mondayTarget.setDate(mondayKW1.getDate() + (kw - 1) * 7);
+
+  const tage = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  // Slots: Mo(+0), Mi(+2), Fr(+4), So(+6)
+  const offsets = [0, 2, 4, 6];
+  const monate = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+  return offsets.map(offset => {
+    const d = new Date(mondayTarget);
+    d.setDate(mondayTarget.getDate() + offset);
+    d.setHours(10, 0, 0, 0);
+    const tag = tage[offset];
+    const label = `${tag}. ${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.`;
+    const iso = d.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+    return { label, iso, tag };
+  });
+}
+
 async function generateProposals(){
   goTo(1);
   document.getElementById('propLoading').style.display='flex';
   document.getElementById('propContent').style.display='none';
   proposals=[]; accepted=new Set(); history=[];
   const s=getSeason(), kw=getNlKW();
+
+  // Versandslots vorberechnen
+  const versandSlots = getVersandSlots(kw);
+  const slotsInfo = versandSlots.map((sl,i) => `  NL ${i+1}: versand_datum="${sl.iso}", versand_label="${sl.label}"`).join('\n');
 
   const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
 Fokus: ${s.focus}
@@ -386,9 +418,12 @@ ABSOLUTE PFLICHT: Verwende NUR Produkte aus der obigen Liste. Jeder Produktname 
 
 WIRKSUBSTANZ im JSON-Feld: Nenne NUR den Hauptwirkstoff des Produkts (z.B. "Schwarzkümmelöl", "Biotin", "Fermentierte Kräuter") – keine erfundenen oder ungenauen Bezeichnungen. Der Teaser soll neugierig machen ohne Wirkstoffe zu nennen.
 
+VERSANDTERMINE (bereits berechnet – EXAKT so in versand_datum und versand_label übernehmen!):
+${slotsInfo}
+
 Antworte NUR mit diesem JSON (kein Markdown davor/danach, keine Codeblöcke):
 {"proposals":[
-{"id":1,"headline":"max 10 Wörter, Wirksubstanz im Fokus","anchor_product":"exakter Produktname","anchor_url":"exakte URL","anchor_price":"XX.XX","bundle_product":"exakter Produktname","bundle_url":"exakte URL","bundle_price":"XX.XX","wirksubstanz":"Hauptwirksubstanz","teaser":"2-3 neugierig machende Sätze","cta_grund":"konkreter Grund jetzt zu handeln","saison_bezug":"warum passt das gerade jetzt?","bild_prompt_en":"photorealistic dog lifestyle photo for email header, no text, landscape 600x300, warm natural light","versand_datum":"YYYY-MM-DDTHH:mm:00.000Z (Dienstag oder Donnerstag dieser KW, 10:00 Uhr)","versand_label":"z.B. Di. 15.04."},
+{"id":1,"headline":"max 10 Wörter, Wirksubstanz im Fokus","anchor_product":"exakter Produktname","anchor_url":"exakte URL","anchor_price":"XX.XX","bundle_product":"exakter Produktname","bundle_url":"exakte URL","bundle_price":"XX.XX","wirksubstanz":"Hauptwirksubstanz","teaser":"2-3 neugierig machende Sätze","cta_grund":"konkreter Grund jetzt zu handeln","saison_bezug":"warum passt das gerade jetzt?","bild_prompt_en":"photorealistic dog lifestyle photo for email header, no text, landscape 600x300, warm natural light","versand_datum":"EXAKT von oben übernehmen","versand_label":"EXAKT von oben übernehmen"},
 {"id":2,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"...","versand_datum":"...","versand_label":"..."},
 {"id":3,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"...","versand_datum":"...","versand_label":"..."},
 {"id":4,"headline":"...","anchor_product":"...","anchor_url":"...","anchor_price":"...","bundle_product":"...","bundle_url":"...","bundle_price":"...","wirksubstanz":"...","teaser":"...","cta_grund":"...","saison_bezug":"...","bild_prompt_en":"...","versand_datum":"...","versand_label":"..."}
