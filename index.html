@@ -294,9 +294,34 @@ function changeNlKW(delta){
   if(nlKW < 1) nlKW = 1;
   if(nlKW > 53) nlKW = 53;
   document.getElementById('nlKwBadge').textContent='KW '+nlKW;
+  // Saison & Anlässe live aktualisieren
+  const s = getSeason(nlKW);
+  const box = document.getElementById('seasonBox0');
+  if (box) {
+    box.innerHTML = `<h3>${s.name}</h3><p>${s.focus}</p>`;
+    const anlaesse = getAnlaesse(nlKW);
+    if (anlaesse.length > 0) {
+      const anlassHtml = anlaesse.map(a => `<span style="display:inline-block;font-size:13px;padding:4px 12px;margin:3px 4px 3px 0;border-radius:20px;border:1px solid ${a.typ==='special'?'rgba(224,184,78,0.5)':a.typ==='marketing'?'rgba(109,212,160,0.4)':'var(--border)'};color:${a.typ==='special'?'var(--gold2)':a.typ==='marketing'?'var(--bright)':'var(--muted)'};background:${a.typ==='special'?'rgba(224,184,78,0.08)':'transparent'}">${a.name}</span>`).join('');
+      box.innerHTML += `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)"><p style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.4rem">Anlässe KW ${nlKW}</p><div style="display:flex;flex-wrap:wrap">${anlassHtml}</div></div>`;
+    }
+  }
 }
-function getSeason(){
-  const m=new Date().getMonth()+1, kw=getKW();
+/** Berechnet Monat aus einer KW (ungefähr) */
+function kwToMonth(kw) {
+  // KW → ungefährer Monat: KW1-4=Jan, KW5-8=Feb, ...
+  const year = new Date().getFullYear();
+  const jan4 = new Date(year, 0, 4);
+  const dayOfWeek = jan4.getDay() || 7;
+  const mondayKW1 = new Date(jan4);
+  mondayKW1.setDate(jan4.getDate() - dayOfWeek + 1);
+  const targetDate = new Date(mondayKW1);
+  targetDate.setDate(mondayKW1.getDate() + (kw - 1) * 7 + 3); // Mitte der Woche (Donnerstag)
+  return targetDate.getMonth() + 1; // 1-12
+}
+
+function getSeason(kwOverride){
+  const kw = kwOverride || getKW();
+  const m = kwToMonth(kw);
   if(kw>=14&&kw<=24) return {name:'Frühling – Zeckensaison 🌿',focus:'Zeckenschutz-Hochsaison! Gassi-Schutz Drops in mind. 2 von 4 Newslettern. Zeckenthema priorisieren.',zecken:true};
   if(m>=3&&m<=5) return {name:'Frühling 🌸',focus:'Fellwechsel, Vitalität, Saisonstart. Immune und Fell-Haut-Krallen im Fokus.',zecken:false};
   if(m>=6&&m<=8) return {name:'Sommer ☀️',focus:'Outdoor, Agility, Reisezeit. Konzentration & Ausdauer, Detox.',zecken:false};
@@ -420,7 +445,7 @@ async function loadProducts(){
     const d=await r.json();
     const arr=Array.isArray(d)?d:(d.products||[]);
     products=arr.filter(p=>!p.title.toLowerCase().includes('messe')&&p.variants?.[0]);
-    const kw=getKW(), s=getSeason();
+    const kw=getKW(), s=getSeason(getNlKW());
     document.getElementById('kwBadge').textContent=`KW ${kw}`;
     document.getElementById('nlKwBadge').textContent=`KW ${getNlKW()}`;
     document.getElementById('loadingProd').style.display='none';
@@ -496,7 +521,7 @@ async function generateProposals(){
   document.getElementById('propLoading').style.display='flex';
   document.getElementById('propContent').style.display='none';
   proposals=[]; accepted=new Set(); history=[];
-  const s=getSeason(), kw=getNlKW();
+  const kw=getNlKW(), s=getSeason(kw);
 
   // Versandslots vorberechnen
   const versandSlots = getVersandSlots(kw);
@@ -713,7 +738,7 @@ function repairJSON(raw) {
 }
 
 function renderProposals(){
-  const s=getSeason(), kw=getKW();
+  const kw=getNlKW(), s=getSeason(kw);
   document.getElementById('propLoading').style.display='none';
   document.getElementById('propContent').style.display='block';
   document.getElementById('seasonBox1').innerHTML=`<h3>${s.name} · KW ${kw}</h3><p>${s.focus}</p>`;
@@ -805,7 +830,7 @@ async function generateNewsletters(){
   document.getElementById('nlResult').style.display='none';
   generatedNLs=[]; currentIdx=0; publishedMap={}; initStoryPool();
 
-  const s=getSeason(), kw=getNlKW();
+  const kw=getNlKW(), s=getSeason(kw);
 
   // RAG parallel vorladen
   document.getElementById('nlLoadTxt').textContent=`Wirkstoff-Wissen für alle Newsletter wird geladen...`;
