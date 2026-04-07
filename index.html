@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter FINAL Generator · Vierbeinerglück</title>
+<title>Newsletter v24 Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -405,11 +405,43 @@ async function generateProposals(){
   const versandSlots = getVersandSlots(kw);
   const slotsInfo = versandSlots.map((sl,i) => `  NL ${i+1}: versand_datum="${sl.iso}", versand_label="${sl.label}"`).join('\n');
 
+  // Produktliste zufällig mischen für Varianz
+  const exclude = ['set','messe','duo','trio','kombi','bundle','ebook','buch bundle'];
+  const coreProducts = products.filter(p => {
+    const t = p.title.toLowerCase();
+    return !exclude.some(x => t.includes(x));
+  });
+  const shuffled = [...coreProducts].sort(() => Math.random() - 0.5);
+  const productCtx = shuffled.map(p => `- ${p.title} | ${p.variants[0].price} EUR | ${SHOP}${p.handle}`).join('\n');
+
+  // 4 zufällige Ankerthemen aus der gemischten Liste wählen
+  const anchorHints = shuffled.slice(0, Math.min(8, shuffled.length));
+  const pairings = [];
+  for (let i = 0; i < 4 && i * 2 + 1 < anchorHints.length; i++) {
+    pairings.push(`  NL ${i+1}: Ankerprodukt → "${anchorHints[i*2].title}", Bundle → "${anchorHints[i*2+1].title}"`);
+  }
+  const pairingHint = pairings.length === 4 ? `\nPRODUKT-ZUWEISUNG (verwende diese Paare als Basis, du darfst tauschen wenn thematisch sinnvoller):
+${pairings.join('\n')}` : '';
+
+  // Thematische Winkel für Abwechslung
+  const winkel = [
+    ['Wirkstoff-Deep-Dive','Erkläre den Hauptwirkstoff wie ein Biologe – überraschend und lehrreich'],
+    ['Kundengeschichte','Emotionale Story eines Hundebesitzers steht im Vordergrund'],
+    ['Saisonaler Ratgeber','Praktische Tipps für die aktuelle Jahreszeit mit Produktempfehlung'],
+    ['Mythos vs. Fakt','Räume mit einem verbreiteten Hunde-Mythos auf und zeige die Wahrheit'],
+    ['Hunderassen-Spezial','Fokus auf eine bestimmte Rasse und ihre besonderen Bedürfnisse'],
+    ['Vorher-Nachher','Transformation-Story: Problem → Lösung mit Produkt'],
+    ['Experten-Interview','Fiktives Gespräch mit einer Tierärztin / Hundeernährungsberaterin'],
+    ['Fun Facts','Überraschende Fakten über Hunde die zum Produkt hinführen']
+  ];
+  const shuffledWinkel = winkel.sort(() => Math.random() - 0.5).slice(0, 4);
+  const winkelInfo = shuffledWinkel.map((w, i) => `  NL ${i+1}: Winkel "${w[0]}" – ${w[1]}`).join('\n');
+
   const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
 Fokus: ${s.focus}
 
 Verfügbare Kernprodukte mit echten Preisen und URLs:
-${buildCtx()}
+${productCtx}
 
 Erstelle 4 Newsletter-Vorschläge passend zur aktuellen Saison.
 ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen (Zeckensaison-Hochphase)!':''}
@@ -417,6 +449,12 @@ ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen
 ABSOLUTE PFLICHT: Verwende NUR Produkte aus der obigen Liste. Jeder Produktname muss EXAKT so geschrieben sein wie in der Liste. Erfinde NIEMALS neue Produkte, Produktnamen oder Preise.
 
 WIRKSUBSTANZ im JSON-Feld: Nenne NUR den Hauptwirkstoff des Produkts (z.B. "Schwarzkümmelöl", "Biotin", "Fermentierte Kräuter") – keine erfundenen oder ungenauen Bezeichnungen. Der Teaser soll neugierig machen ohne Wirkstoffe zu nennen.
+
+VARIANZ-PFLICHT: Jeder der 4 Newsletter muss einen ANDEREN thematischen Winkel haben:
+${winkelInfo}
+${pairingHint}
+
+WICHTIG: Jeder Newsletter muss ein ANDERES Ankerprodukt haben! Keine Wiederholungen. Die 4 Vorschläge sollen sich deutlich unterscheiden – in Produkt, Thema, Tonalität und Blickwinkel.
 
 VERSANDTERMINE (bereits berechnet – EXAKT so in versand_datum und versand_label übernehmen!):
 ${slotsInfo}
