@@ -1351,6 +1351,11 @@ Gib das überarbeitete JSON zurück. NUR das JSON-Objekt, kein Markdown, keine C
 function sanitizeNewsletter(nlJson, story) {
   if (!nlJson) return nlJson;
 
+  // Globale Produktlisten für alle Checks
+  const allProds = products.filter(p => !['messe','ebook','buch bundle'].some(x => p.title.toLowerCase().includes(x)));
+  const setKeywordsCheck = ['set','duo','trio','kombi','bundle'];
+  const singlesOnly = allProds.filter(p => !setKeywordsCheck.some(x => p.title.toLowerCase().includes(x)));
+
   // 1. Anrede-Check: Muss "Hundefreund" enthalten
   if (nlJson.anrede && !nlJson.anrede.includes('Hundefreund')) {
     console.warn(`Anrede korrigiert: "${nlJson.anrede}" → "Hallo Hundefreund,"`);
@@ -1391,8 +1396,6 @@ function sanitizeNewsletter(nlJson, story) {
   });
 
   // 6. Set-als-Ankerprodukt verhindern – Produkt1 (Anker) muss IMMER ein Einzelprodukt sein
-  const setKeywordsCheck = ['set','duo','trio','kombi','bundle'];
-  const singlesOnly = allProds.filter(p => !setKeywordsCheck.some(x => p.title.toLowerCase().includes(x)));
 
   if (nlJson.produkt1?.name) {
     const p1name = nlJson.produkt1.name.toLowerCase();
@@ -1435,11 +1438,7 @@ function sanitizeNewsletter(nlJson, story) {
   ['produkt1', 'produkt2'].forEach(key => {
     const prod = nlJson[key];
     if (!prod || !prod.name) return;
-    const match = allProds.find(p => {
-      const pn = p.title.toLowerCase();
-      const jn = prod.name.toLowerCase();
-      return pn.includes(jn.substring(0, 10)) || jn.includes(pn.substring(0, 10));
-    });
+    const match = findBestProductMatch(prod.name, allProds);
     if (!match) {
       console.error(`⚠️ Produkt "${prod.name}" existiert nicht in Shopify!`);
       const fallbackPool = key === 'produkt1' ? singlesOnly : allProds;
@@ -1456,9 +1455,19 @@ function sanitizeNewsletter(nlJson, story) {
   if (nlJson.produkt1?.name && nlJson.produkt2?.name) {
     const name1 = nlJson.produkt1.name.toLowerCase();
     const name2 = nlJson.produkt2.name.toLowerCase();
-    if (name1 === name2 || (name1.includes(name2.substring(0, 10)) && name2.includes(name1.substring(0, 10)))) {
+    // Besserer Vergleich: Kernwörter extrahieren
+    const words1 = name1.replace(/sari'?s?\s*/i,'').split(/[\s\-&·,]+/).filter(w=>w.length>3);
+    const words2 = name2.replace(/sari'?s?\s*/i,'').split(/[\s\-&·,]+/).filter(w=>w.length>3);
+    const overlap = words1.filter(w => words2.some(w2 => w.includes(w2) || w2.includes(w)));
+    const isDuplicate = name1 === name2 || (overlap.length >= 2 && overlap.length >= Math.min(words1.length, words2.length));
+
+    if (isDuplicate) {
       console.warn(`Doppeltes Produkt erkannt: "${nlJson.produkt1.name}" = "${nlJson.produkt2.name}"`);
-      const alternatives = singlesOnly.filter(p => !p.title.toLowerCase().includes(name1.substring(0, 10)));
+      const alternatives = singlesOnly.filter(p => {
+        const pw = p.title.toLowerCase().replace(/sari'?s?\s*/i,'').split(/[\s\-&·,]+/).filter(w=>w.length>3);
+        const ov = words1.filter(w => pw.some(w2 => w.includes(w2) || w2.includes(w)));
+        return ov.length < 2; // Muss wirklich ein anderes Produkt sein
+      });
       if (alternatives.length > 0) {
         const alt = alternatives[Math.floor(Math.random() * alternatives.length)];
         console.warn(`Produkt 2 ersetzt: "${nlJson.produkt2.name}" → "${alt.title}"`);
@@ -1479,7 +1488,12 @@ function sanitizeNewsletter(nlJson, story) {
       const ankerInSet = ankerWords.some(w => p2name.includes(w));
       if (!ankerInSet) {
         console.warn(`Set "${nlJson.produkt2.name}" passt nicht zum Anker "${nlJson.produkt1.name}" – ersetze Set durch Einzelprodukt`);
-        const alternatives = singlesOnly.filter(p => !p.title.toLowerCase().includes(nlJson.produkt1.name.toLowerCase().substring(0, 10)));
+        const p1words = nlJson.produkt1.name.toLowerCase().replace(/sari'?s?\s*/i,'').split(/[\s\-&·,]+/).filter(w=>w.length>3);
+        const alternatives = singlesOnly.filter(p => {
+          const pw = p.title.toLowerCase().replace(/sari'?s?\s*/i,'').split(/[\s\-&·,]+/).filter(w=>w.length>3);
+          const ov = p1words.filter(w => pw.some(w2 => w.includes(w2) || w2.includes(w)));
+          return ov.length < 2;
+        });
         if (alternatives.length > 0) {
           const alt = alternatives[Math.floor(Math.random() * alternatives.length)];
           nlJson.produkt2.name = alt.title;
@@ -1576,13 +1590,8 @@ function validateProductPrices(nlJson) {
     const prod = nlJson[key];
     if (!prod || !prod.name) return;
 
-    // Finde passendes Shopify-Produkt
-    const match = allProds.find(p => {
-      const pName = p.title.toLowerCase();
-      const jsonName = prod.name.toLowerCase();
-      // Flexibler Match: mindestens die ersten 10 Zeichen oder Kernwörter
-      return pName.includes(jsonName.substring(0, 10)) || jsonName.includes(pName.substring(0, 10));
-    });
+    // Finde passendes Shopify-Produkt mit Score-basiertem Matching
+    const match = findBestProductMatch(prod.name, allProds);
 
     if (match) {
       const realPrice = match.variants[0].price;
@@ -1591,7 +1600,7 @@ function validateProductPrices(nlJson) {
         console.warn(`Preis-Korrektur ${key}: "${prod.preis}" → "${realPrice} EUR" (Shopify: ${match.title})`);
         prod.preis = `${realPrice} EUR`;
       }
-      // Auch Produktnamen exakt korrigieren
+      // Produktnamen exakt korrigieren nur wenn sehr ähnlich
       if (prod.name !== match.title) {
         console.info(`Produktname korrigiert: "${prod.name}" → "${match.title}"`);
         prod.name = match.title;
@@ -1604,6 +1613,44 @@ function validateProductPrices(nlJson) {
   return nlJson;
 }
 
+/** Findet das am besten passende Shopify-Produkt per Score-Matching */
+function findBestProductMatch(jsonName, prodList) {
+  const jn = jsonName.toLowerCase().replace(/[''`]/g, "'");
+
+  // Exakter Match zuerst
+  const exact = prodList.find(p => p.title.toLowerCase() === jn);
+  if (exact) return exact;
+
+  // Score-basiertes Matching: Extrahiere Kernwörter und zähle Übereinstimmungen
+  const jnWords = jn.replace(/sari'?s?\s*/i, '').split(/[\s\-&·,]+/).filter(w => w.length > 2);
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const p of prodList) {
+    const pn = p.title.toLowerCase().replace(/[''`]/g, "'");
+    const pnWords = pn.replace(/sari'?s?\s*/i, '').split(/[\s\-&·,]+/).filter(w => w.length > 2);
+
+    // Zähle wie viele Kernwörter übereinstimmen
+    let score = 0;
+    for (const jw of jnWords) {
+      if (pnWords.some(pw => pw.includes(jw) || jw.includes(pw))) score++;
+    }
+    // Bonus für gleiche Wortanzahl (verhindert dass Sets matchen wenn Einzelprodukt gemeint)
+    if (Math.abs(pnWords.length - jnWords.length) <= 1) score += 0.5;
+    // Bonus wenn der gesamte Name enthalten ist
+    if (pn.includes(jn) || jn.includes(pn)) score += 3;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = p;
+    }
+  }
+
+  // Mindestens 2 Wörter müssen matchen
+  return bestScore >= 2 ? bestMatch : null;
+}
+
 /** Aktualisiert anchor_url und bundle_url wenn Produkte geändert wurden */
 function updateProductUrls(idx, nlJson) {
   const kw = getNlKW();
@@ -1613,7 +1660,7 @@ function updateProductUrls(idx, nlJson) {
   ['produkt1', 'produkt2'].forEach((key, i) => {
     const prod = nlJson[key];
     if (!prod || !prod.name) return;
-    const match = allProds.find(p => p.title.toLowerCase().includes(prod.name.toLowerCase().substring(0, 10)));
+    const match = findBestProductMatch(prod.name, allProds);
     if (match) {
       const baseUrl = SHOP + match.handle;
       const utmUrl = baseUrl + `?utm_source=newsletter&utm_medium=email&utm_campaign=kw${kw}&utm_content=nl${nl.id}-${match.handle.substring(0, 30)}`;
