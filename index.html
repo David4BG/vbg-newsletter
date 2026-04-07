@@ -246,7 +246,7 @@ STRUKTUR (Ogilvy): Wirksubstanz-Headline → neugierige Einleitung → Story →
 PRODUKTNAMEN: Produkte heißen "Drops" – FEST, NICHT flüssig. Niemals "Tropfen". Exakt so schreiben wie übergeben.
 KEIN JAHR: Niemals konkrete Jahreszahl. Stattdessen: "diese Saison", "aktuell", "in diesem Frühling".
 KEINE WIRKUNGSVERSPRECHEN: Kein "81%", "100%", "schützt sicher", "verhindert". Stattdessen: "kann unterstützen", "viele berichten", "wird traditionell eingesetzt".
-STORY: Verwende EXAKT die übergebenen Story-Elemente (Person, Stadt, Hund, Rasse).
+STORY: Falls Story-Elemente übergeben werden, verwende sie. Falls nicht, schreibe einen informativen, sachlichen Text ohne fiktive Personen.
 
 OUTPUT-FORMAT: Antworte AUSSCHLIESSLICH mit validem JSON – kein Markdown, keine Codeblöcke, keine Erklärungen, kein \`\`\`json, nur das reine JSON-Objekt.
 
@@ -255,12 +255,12 @@ JSON-STRUKTUR:
   "anrede": "Hallo Hundefreund,",
   "headline": "Haupt-Überschrift des Newsletters",
   "intro": "2-3 Sätze Einstieg – neugierig, saisonal, keine Produkte",
-  "story": "3-4 Sätze Kundengeschichte mit den übergebenen Namen/Rasse/Stadt",
+  "story": "3-4 Sätze. Je nach Winkel: Kundengeschichte ODER interessanter Fakt ODER saisonaler Ratgeber-Absatz ODER Wirkstoff-Erklärung",
   "wirkstoff_abschnitt": {
     "titel": "Zwischenüberschrift warum der Wirkstoff besonders ist",
     "text": "2-3 Sätze Erklärung des Wirkstoffs aus dem Ratgeber"
   },
-  "zitat": "Kundenzitat in Anführungszeichen – realistisch, nicht übertrieben – Person und Ort am Ende",
+  "zitat": "Je nach Winkel: Kundenzitat MIT Person/Ort ODER ein Sprichwort/Weisheit ODER ein überraschender Fakt",
   "bullet_punkte": ["Punkt 1 mit Wirkstoff und Nutzen", "Punkt 2", "Punkt 3"],
   "produkt1": {
     "label": "Kurzer Anreißer-Satz vor dem Produkt",
@@ -281,7 +281,7 @@ JSON-STRUKTUR:
   "gruss": "Liebe Grüße,\\nDein Team von VierBeinerGlück 🌿"
 }`;
 
-let products=[], proposals=[], accepted=new Set(), generatedNLs=[], currentIdx=0, history=[], publishedMap={};
+let products=[], proposals=[], accepted=new Set(), generatedNLs=[], currentIdx=0, history=[], publishedMap={}, activeWinkel=[];
 
 function getKW(){
   const d=new Date(), jan1=new Date(d.getFullYear(),0,1);
@@ -304,6 +304,97 @@ function getSeason(){
   if(m===12&&kw>=51) return {name:'Silvester 🎆',focus:'Ruhe & Gelassenheit Top-Priorität! Silvester-Angst der Hunde.',zecken:false};
   if(m===12) return {name:'Winter ❄️',focus:'Nässe-Kälte, Immunschutz, Geschenkideen (Buch!).',zecken:false};
   return {name:'Winter 🌨️',focus:'Nässe-Kälte Snacks, Gelenke, Detox nach Feiertagen.',zecken:false};
+}
+
+/** Berechnet Ostersonntag für ein Jahr (Gauss-Algorithmus) */
+function getEaster(year) {
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31), day=((h+l-7*m+114)%31)+1;
+  return new Date(year, month-1, day);
+}
+
+/** Gibt alle relevanten Anlässe/Feiertage für eine KW zurück */
+function getAnlaesse(kw) {
+  const year = new Date().getFullYear();
+  const easter = getEaster(year);
+
+  // Hilfsfunktion: Datum → KW
+  function datumZuKW(d) {
+    const jan1 = new Date(d.getFullYear(), 0, 1);
+    return Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  }
+
+  // Hilfsfunktion: Tage addieren
+  function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+
+  // Feste Feiertage & Anlässe
+  const anlaesse = [
+    // Neujahr & Winteranfang
+    { kw: 1, name: '🎉 Neujahr', typ: 'special', hint: 'Gute Vorsätze für den Hund! Detox nach den Feiertagen, Neujahrs-Gesundheitscheck. Viele Hunde sind nach Silvester noch gestresst → Ruhe & Gelassenheit.' },
+
+    // Valentinstag
+    { kw: datumZuKW(new Date(year, 1, 14)), name: '❤️ Valentinstag', typ: 'marketing', hint: 'Liebe zum Vierbeiner! "Das beste Geschenk für deinen treusten Begleiter". Verwöhn-Produkte, Pflege-Sets.' },
+
+    // Karneval (ca. 49 Tage vor Ostern)
+    { kw: datumZuKW(addDays(easter, -47)), name: '🎭 Karneval/Fasching', typ: 'fun', hint: 'Leichter, humorvoller Newsletter. Verkleidete Hunde, Stress durch Lärm → Ruhe & Gelassenheit.' },
+
+    // Frühlingsanfang
+    { kw: datumZuKW(new Date(year, 2, 20)), name: '🌱 Frühlingsanfang', typ: 'saison', hint: 'Raus in die Natur! Fellwechsel beginnt, Zeckensaison startet bald. Immune + Fell-Haut-Krallen.' },
+
+    // Ostern (Karfreitag bis Ostermontag)
+    { kw: datumZuKW(easter), name: '🐣 Ostern', typ: 'special', hint: 'Oster-Special! "Osterüberraschung für deinen Vierbeiner". Vorsicht: Schokolade giftig für Hunde! Geschenk-Bundles bewerben.' },
+    { kw: datumZuKW(easter) - 1, name: '🐣 Oster-Vorfreude', typ: 'marketing', hint: 'Letzte Chance für Oster-Bestellungen! Geschenkideen für Hundefreunde.' },
+
+    // Muttertag (2. Sonntag im Mai)
+    { kw: datumZuKW(new Date(year, 4, 1 + (7 - new Date(year, 4, 1).getDay()) % 7 + 7)), name: '💐 Muttertag', typ: 'marketing', hint: '"Für die beste Hundemama!" Geschenkideen, Verwöhn-Pakete. Emotionaler Winkel: die Bindung zwischen Frauchen und Hund.' },
+
+    // Sommeranfang
+    { kw: datumZuKW(new Date(year, 5, 21)), name: '☀️ Sommeranfang', typ: 'saison', hint: 'Hitze-Tipps für Hunde! Viel trinken, Mittagshitze meiden. Detox, Konzentration bei Outdoor-Aktivitäten.' },
+
+    // Hundstage (23.7 - 23.8)
+    { kw: datumZuKW(new Date(year, 6, 23)), name: '🌡️ Hundstage beginnen', typ: 'fun', hint: 'Die heißeste Zeit! Fun Fact: "Hundstage" kommen vom Sternbild Sirius. Abkühlung-Tipps, Immunsystem stärken.' },
+
+    // Welthundetag (10. Oktober)
+    { kw: datumZuKW(new Date(year, 9, 10)), name: '🐕 Welthundetag', typ: 'special', hint: 'Feiere deinen besten Freund! Besondere Aktion, emotionale Geschichte. "Was dein Hund dir jeden Tag gibt – gib ihm etwas zurück."' },
+
+    // Halloween
+    { kw: datumZuKW(new Date(year, 9, 31)), name: '🎃 Halloween', typ: 'fun', hint: 'Gruselig für Hunde! Lärm, Verkleidungen, Süßigkeiten-Gefahr. Ruhe & Gelassenheit, Sicherheits-Tipps.' },
+
+    // Black Friday (4. Freitag im November)
+    { kw: datumZuKW(new Date(year, 10, 1 + (5 - new Date(year, 10, 1).getDay() + 7) % 7 + 21)), name: '🏷️ Black Friday', typ: 'marketing', hint: 'SALE-Newsletter! Angebote, Bundles, limitierte Aktionen. Dringlichkeit: "Nur dieses Wochenende!" Geschenke-Vorausplanung für Weihnachten.' },
+    { kw: datumZuKW(new Date(year, 10, 1 + (5 - new Date(year, 10, 1).getDay() + 7) % 7 + 21)) - 1, name: '🏷️ Black Friday Teaser', typ: 'marketing', hint: 'Vorfreude aufbauen! "In einer Woche ist Black Friday – was wir für euch vorbereitet haben..."' },
+
+    // 1. Advent (nächster Sonntag nach 26.11.)
+    { kw: datumZuKW(new Date(year, 10, 27 + (7 - new Date(year, 10, 27).getDay()) % 7)), name: '🕯️ 1. Advent', typ: 'special', hint: 'Adventszeit! Gemütlichkeit, Besinnlichkeit. Hunde lieben Routine – Stress durch Weihnachtstrubel vermeiden. Geschenkideen starten.' },
+
+    // Nikolaus
+    { kw: datumZuKW(new Date(year, 11, 6)), name: '🎅 Nikolaus', typ: 'fun', hint: '"Was packt der Nikolaus in den Hundestiefel?" Kleine Geschenkideen, Stiefel-Aktion.' },
+
+    // Weihnachten
+    { kw: datumZuKW(new Date(year, 11, 24)), name: '🎄 Weihnachten', typ: 'special', hint: 'Weihnachts-Special! Letzte Bestellfrist beachten. Geschenke, Familienfest mit Hund. Vorsicht: Weihnachtsdeko, Tannennadeln, Schokolade.' },
+    { kw: datumZuKW(new Date(year, 11, 24)) - 1, name: '🎁 Letzte Weihnachtsbestellungen', typ: 'marketing', hint: 'DRINGEND: "Bestelle bis Freitag für Lieferung vor Heiligabend!" Last-Minute-Geschenke.' },
+    { kw: datumZuKW(new Date(year, 11, 24)) - 2, name: '🎄 Weihnachts-Geschenkeguide', typ: 'marketing', hint: 'Geschenke-Ratgeber: "Die 5 besten Geschenke für deinen Vierbeiner". Bundle-Angebote.' },
+
+    // Silvester
+    { kw: datumZuKW(new Date(year, 11, 31)), name: '🎆 Silvester', typ: 'special', hint: 'TOP-PRIORITÄT: Silvester-Angst bei Hunden! Ruhe & Gelassenheit Drops JETZT bestellen (rechtzeitig anfangen!). Tipps gegen Feuerwerks-Stress.' },
+    { kw: datumZuKW(new Date(year, 11, 31)) - 1, name: '🎆 Silvester-Vorbereitung', typ: 'special', hint: 'Jetzt noch Ruhe & Gelassenheit bestellen! "In einer Woche ist Silvester – so bereitest du deinen Hund vor."' },
+    { kw: datumZuKW(new Date(year, 11, 31)) - 2, name: '🎆 Silvester-Countdown', typ: 'marketing', hint: 'Frühzeitig Ruhe & Gelassenheit Drops einsetzen (mind. 2 Wochen vorher starten). Silvester-Guide.' },
+
+    // Welttierschutztag (4. Oktober)
+    { kw: datumZuKW(new Date(year, 9, 4)), name: '🐾 Welttierschutztag', typ: 'special', hint: 'Tierschutz & Nachhaltigkeit! "Warum natürliche Produkte wichtig sind." Made in Germany, keine Tierversuche, nachhaltiger Familienbetrieb.' },
+
+    // Tag des Hundes (erster Sonntag im Juni, Deutschland)
+    { kw: datumZuKW(new Date(year, 5, 1 + (7 - new Date(year, 5, 1).getDay()) % 7)), name: '🐕‍🦺 Tag des Hundes', typ: 'special', hint: 'Deutscher Aktionstag! Die Mensch-Hund-Beziehung feiern. Emotionale Stories, Community-Aktionen.' },
+  ];
+
+  // Finde Anlässe für die angegebene KW und ±1 Woche Vorschau
+  const treffer = anlaesse.filter(a => a.kw === kw || a.kw === kw + 1);
+
+  return treffer;
 }
 
 function buildCtx(){
@@ -335,6 +426,12 @@ async function loadProducts(){
     document.getElementById('loadingProd').style.display='none';
     document.getElementById('startContent').style.display='block';
     document.getElementById('seasonBox0').innerHTML=`<h3>${s.name}</h3><p>${s.focus}</p>`;
+    // Anlässe für NL-KW anzeigen
+    const anlaesse = getAnlaesse(getNlKW());
+    if (anlaesse.length > 0) {
+      const anlassHtml = anlaesse.map(a => `<span style="display:inline-block;font-size:13px;padding:4px 12px;margin:3px 4px 3px 0;border-radius:20px;border:1px solid ${a.typ==='special'?'rgba(224,184,78,0.5)':a.typ==='marketing'?'rgba(109,212,160,0.4)':'var(--border)'};color:${a.typ==='special'?'var(--gold2)':a.typ==='marketing'?'var(--bright)':'var(--muted)'};background:${a.typ==='special'?'rgba(224,184,78,0.08)':'transparent'}">${a.name}</span>`).join('');
+      document.getElementById('seasonBox0').innerHTML += `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)"><p style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.4rem">Anlässe KW ${getNlKW()}</p><div style="display:flex;flex-wrap:wrap">${anlassHtml}</div></div>`;
+    }
   }catch(e){
     document.getElementById('loadingProd').innerHTML=`<span style="color:#e74c3c">Shopify-Verbindung fehlgeschlagen: ${e.message}</span>`;
   }
@@ -423,22 +520,39 @@ async function generateProposals(){
   const pairingHint = pairings.length === 4 ? `\nPRODUKT-ZUWEISUNG (verwende diese Paare als Basis, du darfst tauschen wenn thematisch sinnvoller):
 ${pairings.join('\n')}` : '';
 
-  // Thematische Winkel für Abwechslung
+  // Thematische Winkel für Abwechslung – manche brauchen Story, manche nicht
   const winkel = [
-    ['Wirkstoff-Deep-Dive','Erkläre den Hauptwirkstoff wie ein Biologe – überraschend und lehrreich'],
-    ['Kundengeschichte','Emotionale Story eines Hundebesitzers steht im Vordergrund'],
-    ['Saisonaler Ratgeber','Praktische Tipps für die aktuelle Jahreszeit mit Produktempfehlung'],
-    ['Mythos vs. Fakt','Räume mit einem verbreiteten Hunde-Mythos auf und zeige die Wahrheit'],
-    ['Hunderassen-Spezial','Fokus auf eine bestimmte Rasse und ihre besonderen Bedürfnisse'],
-    ['Vorher-Nachher','Transformation-Story: Problem → Lösung mit Produkt'],
-    ['Experten-Interview','Fiktives Gespräch mit einer Tierärztin / Hundeernährungsberaterin'],
-    ['Fun Facts','Überraschende Fakten über Hunde die zum Produkt hinführen']
+    ['Wirkstoff-Deep-Dive','Erkläre den Hauptwirkstoff wie ein Biologe – überraschend und lehrreich. Keine Kundengeschichte nötig, rein informativ.', false],
+    ['Kundengeschichte','Emotionale Story eines Hundebesitzers steht im Vordergrund.', true],
+    ['Saisonaler Ratgeber','Praktische Tipps für die aktuelle Jahreszeit mit Produktempfehlung. Direkt und sachlich, keine Story nötig.', false],
+    ['Mythos vs. Fakt','Räume mit einem verbreiteten Hunde-Mythos auf und zeige die Wahrheit. Informativ, keine Personen nötig.', false],
+    ['Hunderassen-Spezial','Fokus auf eine bestimmte Rasse und ihre besonderen Bedürfnisse. Kann eine kurze Anekdote enthalten.', true],
+    ['Vorher-Nachher','Transformation-Story: Problem → Lösung mit Produkt. Braucht eine Kundengeschichte.', true],
+    ['Kurz & knackig','Kurzer, direkter Newsletter – Wirkstoff-Fakt, Produktvorstellung, fertig. Kein Storytelling.', false],
+    ['Fun Facts','Überraschende Fakten über Hunde die zum Produkt hinführen. Unterhaltsam, keine Personen nötig.', false],
+    ['Saisonale Warnung','Konkrete Warnung/Hinweis zur Saison (Zecken, Hitze, Kälte, Silvester). Sachlich mit Handlungsempfehlung.', false],
+    ['Erfahrungsbericht','Ein Kunde erzählt seine Geschichte mit dem Produkt. Braucht Personen-Elemente.', true],
+    ['Wusstest du?','Überraschendes Hundewissen als Aufhänger, dann zum Produkt. Leicht und locker.', false],
+    ['Experten-Tipp','Kurzer Tipp von einer Tierärztin zum Thema. Kann Tierarzt-Verweis enthalten.', false],
   ];
-  const shuffledWinkel = winkel.sort(() => Math.random() - 0.5).slice(0, 4);
+  const shuffledWinkel = [...winkel].sort(() => Math.random() - 0.5).slice(0, 4);
+  activeWinkel = shuffledWinkel;
   const winkelInfo = shuffledWinkel.map((w, i) => `  NL ${i+1}: Winkel "${w[0]}" – ${w[1]}`).join('\n');
+
+  // Anlässe & Feiertage für diese KW ermitteln
+  const anlaesse = getAnlaesse(kw);
+  let anlassBlock = '';
+  if (anlaesse.length > 0) {
+    const anlassTexte = anlaesse.map(a => `  ${a.name} (${a.typ === 'special' ? 'SPECIAL-Newsletter!' : a.typ === 'marketing' ? 'Marketing-Anlass' : 'Themen-Idee'})\n    → ${a.hint}`).join('\n');
+    const specialCount = anlaesse.filter(a => a.typ === 'special').length;
+    anlassBlock = `\n🎉 ANLÄSSE & FEIERTAGE in/um KW ${kw}:
+${anlassTexte}
+${specialCount > 0 ? `\nWICHTIG: Mind. ${Math.min(specialCount, 2)} der 4 Newsletter MÜSSEN diesen Anlass aufgreifen! Nutze die Hints für passende Produktkombinationen und Storytelling-Winkel.` : '\nDiese Anlässe können optional als Aufhänger genutzt werden – müssen aber nicht.'}`;
+  }
 
   const prompt=`Aktuelle Situation: KW ${kw}, Saison: ${s.name}
 Fokus: ${s.focus}
+${anlassBlock}
 
 Verfügbare Kernprodukte mit echten Preisen und URLs:
 ${productCtx}
@@ -665,19 +779,21 @@ let storyPool = null;
 function initStoryPool() {
   const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
   storyPool = {
-    hunde:   shuffle(['Bello','Luna','Rocky','Mia','Max','Lotte','Bruno','Nala','Finn','Zara','Oscar','Emma','Thor','Cleo','Rudi','Hera','Kira','Rex','Bella','Buddy']),
-    rassen:  shuffle(['Labrador','Golden Retriever','Border Collie','Beagle','Husky','Dackel','Schäferhund','Pudel','Boxer','Weimaraner','Malteser','Spitz','Setter','Dobermann','Cocker Spaniel','Shiba Inu']),
-    personen:shuffle(['Maria','Thomas','Sandra','Klaus','Julia','Peter','Anna','Markus','Lisa','Stefan','Sabine','Michael','Petra','Frank','Nicole','Andreas','Birgit','Ralf','Claudia','Martin']),
-    staedte: shuffle(['Hamburg','Berlin','Köln','Stuttgart','Dresden','Leipzig','Hannover','Bremen','Nürnberg','Freiburg','Münster','Heidelberg','Kiel','Rostock','Erfurt','Mainz','Augsburg','Bonn','Dortmund','Düsseldorf'])
+    hunde:     shuffle(['Bello','Luna','Rocky','Mia','Max','Lotte','Bruno','Nala','Finn','Zara','Oscar','Emma','Thor','Cleo','Rudi','Hera','Kira','Rex','Bella','Buddy']),
+    rassen:    shuffle(['Labrador','Golden Retriever','Border Collie','Beagle','Husky','Dackel','Schäferhund','Pudel','Boxer','Weimaraner','Malteser','Spitz','Setter','Dobermann','Cocker Spaniel','Shiba Inu']),
+    personen:  shuffle(['Maria','Thomas','Sandra','Klaus','Julia','Peter','Anna','Markus','Lisa','Stefan','Sabine','Michael','Petra','Frank','Nicole','Andreas','Birgit','Ralf','Claudia','Martin']),
+    staedte:   shuffle(['Hamburg','Berlin','Köln','Stuttgart','Dresden','Leipzig','Hannover','Bremen','Nürnberg','Freiburg','Münster','Heidelberg','Kiel','Rostock','Erfurt','Mainz','Augsburg','Bonn','Dortmund','Düsseldorf']),
+    tieraerzte:shuffle(['Dr. Susanne Weber','Dr. Katrin Hoffmann','Dr. Marion Fischer','Dr. Bettina Schröder','Dr. Elke Braun','Dr. Johanna Richter','Dr. Andrea Lange','Dr. Monika Schulz','Dr. Heike Bauer','Dr. Anja Koch'])
   };
 }
 function getUniqueStoryElements(index) {
   if(!storyPool) initStoryPool();
   return {
-    hund:   storyPool.hunde[index % storyPool.hunde.length],
-    rasse:  storyPool.rassen[index % storyPool.rassen.length],
-    person: storyPool.personen[index % storyPool.personen.length],
-    stadt:  storyPool.staedte[index % storyPool.staedte.length]
+    hund:      storyPool.hunde[index % storyPool.hunde.length],
+    rasse:     storyPool.rassen[index % storyPool.rassen.length],
+    person:    storyPool.personen[index % storyPool.personen.length],
+    stadt:     storyPool.staedte[index % storyPool.staedte.length],
+    tierarzt:  storyPool.tieraerzte[index % storyPool.tieraerzte.length]
   };
 }
 
@@ -707,6 +823,11 @@ async function generateNewsletters(){
 
     const ragWissen = ragCache[p.id] || null;
     const story = getUniqueStoryElements(i);
+    
+    // Prüfe ob dieser Newsletter-Winkel eine Story braucht
+    const nlWinkel = activeWinkel[i] || null;
+    const brauchtStory = nlWinkel ? nlWinkel[2] : (Math.random() > 0.5);
+
     const ragContext = ragWissen ? `
 
 WIRKSTOFF-WISSEN AUS UNSEREM RATGEBER (PFLICHT: nutze diese echten Fakten, erfinde KEINE Wirkstoffe!):
@@ -716,7 +837,18 @@ Saisonaler Bezug aus dem Ratgeber: ${ragWissen.saison_fakt || ''}
 
 WICHTIG: Nenne im Newsletter NUR Wirkstoffe die oben im Ratgeber-Wissen stehen. Erfinde KEINE weiteren Inhaltsstoffe!` : '';
 
+    const storyBlock = brauchtStory ? `
+STORY-ELEMENTE (verwende GENAU diese – alle Personen kommen aus derselben Stadt!):
+- Hundebesitzer: ${story.person} aus ${story.stadt}
+- Hund: ${story.hund} (${story.rasse})
+- Tierärztin (NUR falls es thematisch wirklich passt, NICHT erzwingen): ${story.tierarzt} aus ${story.stadt}
+
+GEOGRAFISCHE KONSISTENZ: Falls du Personen oder Orte erwähnst, spielen ALLE in ${story.stadt}. Erfinde KEINE anderen Städte.` : `
+STIL: Dieser Newsletter kommt OHNE Kundengeschichte und OHNE Tierarzt-Erwähnung aus. Schreibe direkt, informativ und sachlich. Das "story"-Feld nutzt du für einen interessanten Fakt, eine saisonale Beobachtung oder einen kurzen Ratgeber-Absatz – KEINE fiktive Person, KEIN Hundename, KEINE Stadt.
+Das "zitat"-Feld kannst du für ein allgemeines Sprichwort, eine Redewendung oder einen Wissens-Fakt nutzen – KEIN Kundenzitat mit Namen.`;
+
     const prompt=`Schreibe einen Newsletter für Vierbeinerglück. Antworte AUSSCHLIESSLICH mit dem JSON-Objekt gemäß der definierten Struktur. KEIN Markdown, KEINE Codeblöcke, KEIN Text davor oder danach.
+${nlWinkel ? `\nTHEMATISCHER WINKEL: "${nlWinkel[0]}" – ${nlWinkel[1]}` : ''}
 
 Headline: "${p.headline}"
 
@@ -734,13 +866,10 @@ CTA: ${p.cta_grund}
 Saison: ${s.name}, KW ${kw}
 ${fb?'Feedback: '+fb:''}
 ${ragContext}
-
-STORY-ELEMENTE (verwende GENAU diese für deine Geschichte im "story"-Feld und im "zitat"-Feld, NICHT in der Anrede!):
-- Hundebesitzer: ${story.person} aus ${story.stadt}
-- Hund: ${story.hund} (${story.rasse})
+${storyBlock}
 
 STRIKTE REGELN:
-- ANREDE: Muss IMMER "Hallo Hundefreund," lauten – NIEMALS den Story-Namen (${story.person}) oder einen anderen konkreten Namen einsetzen! "Hundefreund" wird später automatisch durch den echten Vornamen des Empfängers ersetzt.
+- ANREDE: Muss IMMER "Hallo Hundefreund," lauten – NIEMALS einen konkreten Namen einsetzen! "Hundefreund" wird später automatisch durch den echten Vornamen des Empfängers ersetzt.
 - NUR diese 2 Produkte erwähnen – KEINE weiteren Produkte erfinden
 - Preise EXAKT wie angegeben – niemals andere Preise
 - Antworte NUR mit dem JSON-Objekt, kein anderer Text`;
