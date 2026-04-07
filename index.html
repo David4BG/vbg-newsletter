@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v24 Generator · Vierbeinerglück</title>
+<title>Newsletter FINAL Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -204,6 +204,12 @@ textarea::placeholder{color:var(--muted)}
   <div id="nlResult" style="display:none">
     <div id="statusMsg" style="display:none"></div>
     <div class="tabs-row" id="nlTabs"></div>
+    <div id="versandBox" style="display:flex;align-items:center;gap:12px;margin-bottom:.75rem;padding:10px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);">
+      <span style="font-size:12px;color:var(--muted);white-space:nowrap;">📅 Versand:</span>
+      <span id="versandLabel" style="font-size:13px;color:var(--gold2);min-width:80px;"></span>
+      <input type="datetime-local" id="versandInput" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--cream);font-family:'Jost',sans-serif;font-size:13px;padding:5px 10px;flex:1;max-width:240px;" onchange="updateVersandDatum()">
+      <span id="versandStatus" style="font-size:11px;color:var(--muted);"></span>
+    </div>
     <div class="actions" style="margin-top:0;margin-bottom:.75rem">
       <button class="btn btn-publish btn-sm" id="btnPublish" onclick="publishCurrent()">In Listmonk veröffentlichen →</button>
       <button class="btn btn-sm" id="btnPublishAll" onclick="publishAll()">Alle veröffentlichen →</button>
@@ -423,11 +429,41 @@ function getAnlaesse(kw) {
 }
 
 function buildCtx(){
-  const exclude = ['set','messe','duo','trio','kombi','bundle','ebook','buch bundle'];
+  const excludeAlways = ['messe','ebook','buch bundle'];
+  const setKeywords = ['set','duo','trio','kombi','bundle'];
   return products.filter(p=>{
     const t = p.title.toLowerCase();
-    return !exclude.some(x=>t.includes(x));
+    return !excludeAlways.some(x=>t.includes(x)) && !setKeywords.some(x=>t.includes(x));
   }).map(p=>`- ${p.title} | ${p.variants[0].price} EUR | ${SHOP}${p.handle}`).join('\n');
+}
+
+/** Gibt Sets zurück mit Info welche Einzelprodukte enthalten sind */
+function buildSetCtx(){
+  const setKeywords = ['set','duo','trio','kombi','bundle'];
+  const excludeAlways = ['messe','ebook','buch bundle'];
+  const sets = products.filter(p=>{
+    const t = p.title.toLowerCase();
+    return setKeywords.some(x=>t.includes(x)) && !excludeAlways.some(x=>t.includes(x));
+  });
+  if (sets.length === 0) return '';
+
+  // Einzelprodukte für Matching
+  const singles = products.filter(p=>{
+    const t = p.title.toLowerCase();
+    return !setKeywords.some(x=>t.includes(x)) && !excludeAlways.some(x=>t.includes(x));
+  });
+
+  return sets.map(s=>{
+    // Versuche enthaltene Einzelprodukte zu erkennen
+    const tl = s.title.toLowerCase();
+    const enthaltene = singles.filter(sp => {
+      // Prüfe ob Schlüsselwörter des Einzelprodukts im Set-Titel vorkommen
+      const words = sp.title.toLowerCase().replace(/sari'?s?\s*/i,'').replace(/drops/i,'').trim().split(/[\s\-&]+/).filter(w => w.length > 3);
+      return words.some(w => tl.includes(w));
+    });
+    const enthalteneInfo = enthaltene.length > 0 ? ` (enthält: ${enthaltene.map(e=>e.title).join(' + ')})` : '';
+    return `- ${s.title} | ${s.variants[0].price} EUR | ${SHOP}${s.handle}${enthalteneInfo}`;
+  }).join('\n');
 }
 
 function goTo(n){
@@ -528,13 +564,15 @@ async function generateProposals(){
   const slotsInfo = versandSlots.map((sl,i) => `  NL ${i+1}: versand_datum="${sl.iso}", versand_label="${sl.label}"`).join('\n');
 
   // Produktliste zufällig mischen für Varianz
-  const exclude = ['set','messe','duo','trio','kombi','bundle','ebook','buch bundle'];
+  const excludeAlways = ['messe','ebook','buch bundle'];
+  const setKeywords = ['set','duo','trio','kombi','bundle'];
   const coreProducts = products.filter(p => {
     const t = p.title.toLowerCase();
-    return !exclude.some(x => t.includes(x));
+    return !excludeAlways.some(x => t.includes(x)) && !setKeywords.some(x => t.includes(x));
   });
   const shuffled = [...coreProducts].sort(() => Math.random() - 0.5);
   const productCtx = shuffled.map(p => `- ${p.title} | ${p.variants[0].price} EUR | ${SHOP}${p.handle}`).join('\n');
+  const setCtx = buildSetCtx();
 
   // 4 zufällige Ankerthemen aus der gemischten Liste wählen
   const anchorHints = shuffled.slice(0, Math.min(8, shuffled.length));
@@ -542,7 +580,7 @@ async function generateProposals(){
   for (let i = 0; i < 4 && i * 2 + 1 < anchorHints.length; i++) {
     pairings.push(`  NL ${i+1}: Ankerprodukt → "${anchorHints[i*2].title}", Bundle → "${anchorHints[i*2+1].title}"`);
   }
-  const pairingHint = pairings.length === 4 ? `\nPRODUKT-ZUWEISUNG (verwende diese Paare als Basis, du darfst tauschen wenn thematisch sinnvoller):
+  const pairingHint = pairings.length === 4 ? `\nPRODUKT-ZUWEISUNG (verwende diese Paare als Basis, du darfst tauschen wenn thematisch sinnvoller – ein Set als Bundle ist auch erlaubt!):
 ${pairings.join('\n')}` : '';
 
   // Thematische Winkel für Abwechslung – manche brauchen Story, manche nicht
@@ -579,8 +617,18 @@ ${specialCount > 0 ? `\nWICHTIG: Mind. ${Math.min(specialCount, 2)} der 4 Newsle
 Fokus: ${s.focus}
 ${anlassBlock}
 
-Verfügbare Kernprodukte mit echten Preisen und URLs:
+EINZELPRODUKTE (Ankerprodukt oder Bundle-Produkt):
 ${productCtx}
+${setCtx ? `
+SPAR-SETS (dürfen NUR als bundle_product verwendet werden, NIEMALS als anchor_product):
+${setCtx}
+
+SET-REGELN:
+- Ein Set darf NUR als bundle_product eingesetzt werden – NIEMALS als anchor_product.
+- Das anchor_product muss IMMER ein Einzelprodukt sein.
+- Ein Set darf nur empfohlen werden, wenn das Einzelprodukt (anchor_product) im Set ENTHALTEN ist. Beispiel: Wenn anchor = "Gassi-Schutz Drops", dann darf das Bundle ein Set sein das Gassi-Schutz enthält.
+- NIEMALS 2 Sets in einem Newsletter. Immer: 1 Einzelprodukt + 1 Einzelprodukt ODER 1 Einzelprodukt + 1 passendes Set.
+- Sets sind OPTIONAL – nicht jeder Newsletter braucht ein Set. Maximal 1-2 von 4 Newslettern sollten ein Set als Bundle haben.` : ''}
 
 Erstelle 4 Newsletter-Vorschläge passend zur aktuellen Saison.
 ${s.zecken?'WICHTIG: Gassi-Schutz Drops müssen in mind. 2 Newslettern vorkommen (Zeckensaison-Hochphase)!':''}
@@ -617,24 +665,31 @@ Antworte NUR mit diesem JSON (kein Markdown davor/danach, keine Codeblöcke):
     history.push({role:'assistant',content:txt});
     proposals=JSON.parse(txt).proposals;
 
-    // Validierung: Prüfe ob Produkte wirklich existieren
-    const validProducts = buildCtx().split('\n').map(l=>l.split('|')[0].replace('-','').trim().toLowerCase());
+    // Validierung: Prüfe ob Produkte wirklich existieren (Einzel + Sets)
+    const allValidProducts = products.filter(pr => {
+      const t = pr.title.toLowerCase();
+      return !['messe','ebook','buch bundle'].some(x => t.includes(x));
+    });
+    const validNames = allValidProducts.map(p => p.title.toLowerCase());
+    const singleProducts = allValidProducts.filter(pr => {
+      const t = pr.title.toLowerCase();
+      return !['set','duo','trio','kombi','bundle'].some(x => t.includes(x));
+    });
+
     proposals = proposals.map(p=>{
-      const anchorValid = validProducts.some(v=>v.includes(p.anchor_product.toLowerCase().substring(0,10)));
-      const bundleValid = validProducts.some(v=>v.includes(p.bundle_product.toLowerCase().substring(0,10)));
-      const realProducts = products.filter(pr=>{
-        const t=pr.title.toLowerCase();
-        const ex=['set','messe','duo','trio','kombi','bundle','ebook','buch bundle'];
-        return !ex.some(x=>t.includes(x));
-      });
-      if(!anchorValid && realProducts.length>0){
-        const rp = realProducts[p.id % realProducts.length];
+      const anchorValid = validNames.some(v => v.includes(p.anchor_product.toLowerCase().substring(0,10)));
+      const bundleValid = validNames.some(v => v.includes(p.bundle_product.toLowerCase().substring(0,10)));
+
+      // Ankerprodukt muss ein Einzelprodukt sein
+      if(!anchorValid && singleProducts.length>0){
+        const rp = singleProducts[p.id % singleProducts.length];
         p.anchor_product = rp.title;
         p.anchor_price = rp.variants[0].price;
         p.anchor_url = SHOP + rp.handle;
       }
-      if(!bundleValid && realProducts.length>1){
-        const rp = realProducts[(p.id+1) % realProducts.length];
+      // Bundle kann ein Einzelprodukt ODER ein Set sein
+      if(!bundleValid && singleProducts.length>1){
+        const rp = singleProducts[(p.id+1) % singleProducts.length];
         p.bundle_product = rp.title;
         p.bundle_price = rp.variants[0].price;
         p.bundle_url = SHOP + rp.handle;
@@ -1197,6 +1252,49 @@ function showNL(i){
   const btn=document.getElementById('btnPublish');
   btn.textContent=nl.published?'✓ Bereits veröffentlicht':'In Listmonk veröffentlichen →';
   btn.disabled=nl.published;
+
+  // Versanddatum anzeigen und editierbar machen
+  const labelEl = document.getElementById('versandLabel');
+  const inputEl = document.getElementById('versandInput');
+  const statusEl = document.getElementById('versandStatus');
+  if (nl.versand_datum) {
+    const d = new Date(nl.versand_datum);
+    const tage = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+    labelEl.textContent = nl.versand_label || `${tage[d.getDay()]}. ${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}. ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    // datetime-local braucht Format: YYYY-MM-DDTHH:MM
+    const localISO = d.getFullYear() + '-' + (d.getMonth()+1).toString().padStart(2,'0') + '-' + d.getDate().toString().padStart(2,'0') + 'T' + d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+    inputEl.value = localISO;
+  } else {
+    labelEl.textContent = 'Kein Datum gesetzt';
+    inputEl.value = '';
+  }
+  statusEl.textContent = nl.published ? '✓ In Listmonk' : (nl.versand_datum_changed ? '⚠️ Geändert' : '');
+}
+
+function updateVersandDatum() {
+  const inputEl = document.getElementById('versandInput');
+  const val = inputEl.value;
+  if (!val) return;
+  const d = new Date(val);
+  const iso = d.toISOString();
+  const tage = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+  const label = `${tage[d.getDay()]}. ${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}. ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+
+  generatedNLs[currentIdx].versand_datum = iso;
+  generatedNLs[currentIdx].versand_label = label;
+  generatedNLs[currentIdx].versand_datum_changed = true;
+
+  // Falls bereits veröffentlicht, Publish-Status zurücksetzen (muss neu veröffentlicht werden)
+  if (generatedNLs[currentIdx].published) {
+    generatedNLs[currentIdx].published = false;
+    delete publishedMap[currentIdx];
+    renderTabs();
+  }
+
+  document.getElementById('versandLabel').textContent = label;
+  document.getElementById('versandStatus').textContent = '⚠️ Geändert – erneut veröffentlichen';
+  showStatus(`Versanddatum für NL ${generatedNLs[currentIdx].id} auf ${label} geändert.`, 's-info');
+  setTimeout(hideStatus, 3000);
 }
 
 function copyJSON(){
@@ -1270,6 +1368,7 @@ async function publishNL(nl, idx){
     });
     const d=await r.json();
     generatedNLs[idx].published=true;
+    generatedNLs[idx].versand_datum_changed=false;
     publishedMap[idx]=d.listmonk_url||'https://email-campaign.vierbeinerglueck.de';
     renderTabs(); if(currentIdx===idx) showNL(idx);
     return {ok:true};
