@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Newsletter v24 Generator · Vierbeinerglück</title>
+<title>Newsletter FINAL Generator · Vierbeinerglück</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -252,7 +252,7 @@ OUTPUT-FORMAT: Antworte AUSSCHLIESSLICH mit validem JSON – kein Markdown, kein
 
 JSON-STRUKTUR:
 {
-  "anrede": "Hallo [VORNAME],",
+  "anrede": "Hallo Hundefreund,",
   "headline": "Haupt-Überschrift des Newsletters",
   "intro": "2-3 Sätze Einstieg – neugierig, saisonal, keine Produkte",
   "story": "3-4 Sätze Kundengeschichte mit den übergebenen Namen/Rasse/Stadt",
@@ -662,27 +662,50 @@ Saison: ${s.name}, KW ${kw}
 ${fb?'Feedback: '+fb:''}
 ${ragContext}
 
-STORY-ELEMENTE (verwende GENAU diese für deine Geschichte, nicht andere):
+STORY-ELEMENTE (verwende GENAU diese für deine Geschichte im "story"-Feld und im "zitat"-Feld, NICHT in der Anrede!):
 - Hundebesitzer: ${story.person} aus ${story.stadt}
 - Hund: ${story.hund} (${story.rasse})
 
 STRIKTE REGELN:
+- ANREDE: Muss IMMER "Hallo Hundefreund," lauten – NIEMALS den Story-Namen (${story.person}) oder einen anderen konkreten Namen einsetzen! "Hundefreund" wird später automatisch durch den echten Vornamen des Empfängers ersetzt.
 - NUR diese 2 Produkte erwähnen – KEINE weiteren Produkte erfinden
 - Preise EXAKT wie angegeben – niemals andere Preise
 - Antworte NUR mit dem JSON-Objekt, kein anderer Text`;
 
     try{
       const freshMessages=[{role:'user',content:prompt}];
-      const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:freshMessages})});
-      if (!r.ok) throw new Error(`API-Fehler ${r.status}: ${r.statusText}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 2 Min Timeout
+      const r=await fetch('/api/claude',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:freshMessages}),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!r.ok) {
+        const errBody = await r.text().catch(() => '');
+        throw new Error(`API ${r.status}: ${errBody.substring(0, 150) || r.statusText}`);
+      }
       const txt = await r.text();
-      if (!txt) throw new Error('Leere Response vom Server');
+      console.log(`NL ${p.id}: API Response length: ${txt.length} chars`);
+      if (!txt || txt.length < 10) throw new Error(`API gab leere/kurze Response (${txt.length} chars). Proxy-Timeout?`);
       let d;
-      try { d = JSON.parse(txt); } catch(pe) { throw new Error('Server-Response ist kein JSON: ' + txt.substring(0, 100)); }
+      try { d = JSON.parse(txt); } catch(pe) {
+        console.error('Server-Response kein JSON. Erste 200 chars:', txt.substring(0, 200));
+        throw new Error('Server-Response ist kein JSON (Proxy-Fehler?): ' + txt.substring(0, 80));
+      }
+
+      // Prüfe ob Claude stop_reason = end_turn hat (nicht max_tokens)
+      if (d.stop_reason === 'max_tokens') {
+        console.warn('Claude wurde bei max_tokens abgeschnitten!');
+      }
+
       const rawText = extractJSON(d);
+      console.log(`NL ${p.id}: Extracted JSON length: ${rawText.length} chars`);
       let nlJson;
       try { nlJson = JSON.parse(rawText); } catch(e) {
-        console.error('JSON parse failed:', e, 'Raw:', rawText.substring(0, 300));
+        console.error('JSON parse failed:', e.message, 'Position:', e.message.match(/position (\d+)/)?.[1], 'Raw (first 500):', rawText.substring(0, 500));
         nlJson = null;
       }
 
@@ -690,18 +713,27 @@ STRIKTE REGELN:
         // Wenn JSON-Parsing fehlschlägt, nochmal versuchen mit strikterem Prompt
         console.warn('Retrying with stricter JSON prompt...');
         const retryMessages=[{role:'user',content:prompt},{role:'assistant',content:rawText.substring(0,2000)},{role:'user',content:'Das war kein valides JSON. Bitte antworte NUR mit dem JSON-Objekt. Kein Markdown, kein ```json, kein Text davor/danach. Halte die Texte kürzer (max 2 Sätze pro Feld). Nur {\"anrede\":\"...\", ...}'}];
-        const r2=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:retryMessages})});
-        if (r2.ok) {
-          const txt2 = await r2.text();
-          if (txt2) {
-            try {
+        try {
+          const r2=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:retryMessages})});
+          if (r2.ok) {
+            const txt2 = await r2.text();
+            if (txt2 && txt2.length > 10) {
               const d2 = JSON.parse(txt2);
               const rawText2 = extractJSON(d2);
               nlJson = JSON.parse(rawText2);
-            } catch(e2) {
-              console.error('Retry parse also failed:', e2);
             }
           }
+        } catch(e2) {
+          console.error('Retry also failed:', e2);
+        }
+      }
+
+      // Sicherheitsfix: Anrede darf nie einen konkreten Story-Namen enthalten
+      if (nlJson && nlJson.anrede) {
+        // Prüfe ob ein Story-Name in der Anrede steht statt "Hundefreund"
+        if (!nlJson.anrede.includes('Hundefreund')) {
+          console.warn(`Anrede enthielt keinen "Hundefreund"-Platzhalter: "${nlJson.anrede}" – wird korrigiert`);
+          nlJson.anrede = 'Hallo Hundefreund,';
         }
       }
 
@@ -718,7 +750,8 @@ STRIKTE REGELN:
       });
     }catch(e){
       console.error('Newsletter generation error:', e);
-      generatedNLs.push({id:p.id,headline:p.headline,nlJson:null,anchor_url:utmAnchor,bundle_url:utmBundle,bildPrompt:'',published:false,error:e.message});
+      const errMsg = e.name === 'AbortError' ? 'Timeout nach 2 Minuten – Server antwortet nicht' : e.message;
+      generatedNLs.push({id:p.id,headline:p.headline,nlJson:null,anchor_url:utmAnchor,bundle_url:utmBundle,bildPrompt:'',published:false,error:errMsg});
     }
   }
   document.getElementById('nlLoading').style.display='none';
@@ -742,7 +775,7 @@ function jsonToPreviewHtml(j) {
 
   // Anrede
   if (j.anrede) {
-    const anrede = j.anrede.replace('[VORNAME]', '<span style="color:#c9a84c;">Hundefreund</span>');
+    const anrede = j.anrede.replace('Hundefreund', '<span style="color:#c9a84c;">Hundefreund</span>');
     html += `<p style="font-size:16px;line-height:1.75;color:#dedad2;margin-bottom:16px;">${anrede}</p>`;
   }
 
