@@ -863,14 +863,22 @@ Saisonaler Bezug aus dem Ratgeber: ${ragWissen.saison_fakt || ''}
 WICHTIG: Nenne im Newsletter NUR Wirkstoffe die oben im Ratgeber-Wissen stehen. Erfinde KEINE weiteren Inhaltsstoffe!` : '';
 
     const storyBlock = brauchtStory ? `
-STORY-ELEMENTE (verwende GENAU diese – alle Personen kommen aus derselben Stadt!):
+STORY-ELEMENTE – In diesem Newsletter gibt es GENAU EINE Geschichte mit GENAU DIESEN Personen:
 - Hundebesitzer: ${story.person} aus ${story.stadt}
 - Hund: ${story.hund} (${story.rasse})
 - Tierärztin (NUR falls es thematisch wirklich passt, NICHT erzwingen): ${story.tierarzt} aus ${story.stadt}
 
-GEOGRAFISCHE KONSISTENZ: Falls du Personen oder Orte erwähnst, spielen ALLE in ${story.stadt}. Erfinde KEINE anderen Städte.` : `
-STIL: Dieser Newsletter kommt OHNE Kundengeschichte und OHNE Tierarzt-Erwähnung aus. Schreibe direkt, informativ und sachlich. Das "story"-Feld nutzt du für einen interessanten Fakt, eine saisonale Beobachtung oder einen kurzen Ratgeber-Absatz – KEINE fiktive Person, KEIN Hundename, KEINE Stadt.
-Das "zitat"-Feld kannst du für ein allgemeines Sprichwort, eine Redewendung oder einen Wissens-Fakt nutzen – KEIN Kundenzitat mit Namen.`;
+KONSISTENZ-PFLICHT:
+- Der Hund heißt NUR "${story.hund}" – in der Headline, im Intro, in der Story, überall. Erfinde KEINEN zweiten Hundenamen.
+- Die Person heißt NUR "${story.person}" – nicht plötzlich jemand anderes im Zitat oder in der Story.
+- Falls die Headline einen Hundenamen enthält, MUSS es "${story.hund}" sein.
+- ALLE Orte sind ${story.stadt}. Keine anderen Städte erfinden.
+- Im Zitat-Feld: Falls ein Kundenzitat, dann NUR von "${story.person}" mit "${story.hund}" aus "${story.stadt}".` : `
+STIL: Dieser Newsletter kommt OHNE Kundengeschichte aus. Schreibe direkt, informativ und sachlich.
+- Das "story"-Feld nutzt du für einen interessanten Fakt, eine saisonale Beobachtung oder einen kurzen Ratgeber-Absatz.
+- KEINE fiktiven Personen, KEINE Hundenamen, KEINE Städte, KEIN Tierarzt.
+- Die Headline soll einen Wirkstoff oder ein Thema in den Fokus stellen, KEINEN Hundenamen.
+- Das "zitat"-Feld nutzt du für ein allgemeines Sprichwort, eine Weisheit oder einen überraschenden Fakt – KEIN Kundenzitat mit Namen.`;
 
     const prompt=`Schreibe einen Newsletter für Vierbeinerglück. Antworte AUSSCHLIESSLICH mit dem JSON-Objekt gemäß der definierten Struktur. KEIN Markdown, KEINE Codeblöcke, KEIN Text davor oder danach.
 ${nlWinkel ? `\nTHEMATISCHER WINKEL: "${nlWinkel[0]}" – ${nlWinkel[1]}` : ''}
@@ -957,10 +965,38 @@ STRIKTE REGELN:
 
       // Sicherheitsfix: Anrede darf nie einen konkreten Story-Namen enthalten
       if (nlJson && nlJson.anrede) {
-        // Prüfe ob ein Story-Name in der Anrede steht statt "Hundefreund"
         if (!nlJson.anrede.includes('Hundefreund')) {
           console.warn(`Anrede enthielt keinen "Hundefreund"-Platzhalter: "${nlJson.anrede}" – wird korrigiert`);
           nlJson.anrede = 'Hallo Hundefreund,';
+        }
+      }
+
+      // Konsistenz-Check: Prüfe ob unerwartete/fremde Namen in den Texten vorkommen
+      if (nlJson && brauchtStory) {
+        const erlaubteNamen = [story.hund, story.person, story.tierarzt, 'Hundefreund', 'VierBeinerGlück', 'Sari'].map(n => n.toLowerCase());
+        const alleTexte = [nlJson.headline, nlJson.intro, nlJson.story, nlJson.zitat, nlJson.abschluss,
+          nlJson.wirkstoff_abschnitt?.text, nlJson.wirkstoff_abschnitt?.titel].filter(Boolean).join(' ');
+
+        // Prüfe bekannte Hundenamen aus dem Pool die NICHT der zugewiesene sind
+        const alleHundenamen = ['Bello','Luna','Rocky','Mia','Max','Lotte','Bruno','Nala','Finn','Zara','Oscar','Emma','Thor','Cleo','Rudi','Hera','Kira','Rex','Bella','Buddy'];
+        const fremdeHunde = alleHundenamen.filter(h => h !== story.hund && alleTexte.includes(h));
+        if (fremdeHunde.length > 0) {
+          console.warn(`Konsistenz-Problem: Fremde Hundenamen gefunden: ${fremdeHunde.join(', ')} (erwartet: ${story.hund}). Ersetze...`);
+          // Ersetze fremde Hundenamen durch den richtigen
+          for (const fremd of fremdeHunde) {
+            const regex = new RegExp('\\b' + fremd + '\\b', 'g');
+            if (nlJson.headline) nlJson.headline = nlJson.headline.replace(regex, story.hund);
+            if (nlJson.intro) nlJson.intro = nlJson.intro.replace(regex, story.hund);
+            if (nlJson.story) nlJson.story = nlJson.story.replace(regex, story.hund);
+            if (nlJson.zitat) nlJson.zitat = nlJson.zitat.replace(regex, story.hund);
+            if (nlJson.abschluss) nlJson.abschluss = nlJson.abschluss.replace(regex, story.hund);
+          }
+        }
+
+        // Prüfe ob der zugewiesene Hundename überhaupt vorkommt (Headline+Story)
+        const hundInText = alleTexte.toLowerCase().includes(story.hund.toLowerCase());
+        if (!hundInText) {
+          console.info(`Hinweis: Hundename "${story.hund}" kommt nicht im Text vor – kein Problem wenn die Story allgemein gehalten ist.`);
         }
       }
 
