@@ -679,7 +679,7 @@ Antworte NUR mit diesem JSON (kein Markdown davor/danach, keine Codeblöcke):
 
   history.push({role:'user',content:prompt});
   try{
-    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:history})});
+    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:8000,system:SYS,messages:history})});
     if (!r.ok) throw new Error(`API-Fehler ${r.status}`);
     const rtxt = await r.text();
     if (!rtxt) throw new Error('Leere Response');
@@ -1003,7 +1003,7 @@ STRIKTE REGELN:
       const r=await fetch('/api/claude',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:freshMessages}),
+        body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:8000,system:SYS,messages:freshMessages}),
         signal: controller.signal
       });
       clearTimeout(timeout);
@@ -1038,7 +1038,7 @@ STRIKTE REGELN:
         console.warn('Retrying with stricter JSON prompt...');
         const retryMessages=[{role:'user',content:prompt},{role:'assistant',content:rawText.substring(0,2000)},{role:'user',content:'Das war kein valides JSON. Bitte antworte NUR mit dem JSON-Objekt. Kein Markdown, kein ```json, kein Text davor/danach. Halte die Texte kürzer (max 2 Sätze pro Feld). Nur {\"anrede\":\"...\", ...}'}];
         try {
-          const r2=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:retryMessages})});
+          const r2=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:8000,system:SYS,messages:retryMessages})});
           if (r2.ok) {
             const txt2 = await r2.text();
             if (txt2 && txt2.length > 10) {
@@ -1347,7 +1347,7 @@ WICHTIG bei Produktänderungen:
 
 Gib das überarbeitete JSON zurück. NUR das JSON-Objekt, kein Markdown, keine Codeblöcke, kein Text davor/danach.`}
     ];
-    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYS,messages:reviseMessages})});
+    const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:8000,system:SYS,messages:reviseMessages})});
     if (!r.ok) throw new Error(`API-Fehler ${r.status}`);
     const rtxt = await r.text();
     if (!rtxt) throw new Error('Leere Response');
