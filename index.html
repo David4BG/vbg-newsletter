@@ -65,6 +65,11 @@ main{max-width:860px;margin:0 auto;padding:2.5rem 2rem}
 .card-teaser{font-size:15px;color:var(--cream);line-height:1.7;margin-bottom:.6rem}
 
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:.6rem}
+.prod-row{display:flex;flex-direction:column;gap:6px;margin-bottom:.6rem}
+.prod-row label{font-size:12px;color:var(--muted)}
+.prod-select{width:100%;background:transparent;color:var(--cream);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;cursor:pointer}
+.prod-select option{background:#0f2318;color:#f5f0e8}
+.prod-warn{font-size:12px;color:var(--gold2)}
 .chip{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
 .chip.gold{border-color:rgba(224,184,78,0.45);color:var(--gold2);background:rgba(224,184,78,0.06)}
 
@@ -834,11 +839,14 @@ function renderProposals(){
           <p class="card-sub">${p.saison_bezug}</p>
         </div>
       </div>
-      <div class="chips">
-        <span class="chip gold">📦 ${p.anchor_product} · ${p.anchor_price} €</span>
-        <span class="chip">➕ ${p.bundle_product} · ${p.bundle_price} €</span>
+      <div class="prod-row">
+        <label>📦 Hauptprodukt</label>
+        <select class="prod-select" onchange="setProdukt(${p.id},'anchor',this.value)">${produktOptionen(p.anchor_product,false)}</select>
+        <label>➕ Zweites Produkt / Set</label>
+        <select class="prod-select" onchange="setProdukt(${p.id},'bundle',this.value)">${produktOptionen(p.bundle_product,true)}</select>
+        <span class="prod-warn" id="warn-${p.id}">${setWarnung(p)}</span>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:.35rem">💡 Wirksubstanz: <strong style="color:var(--cream)">${p.wirksubstanz}</strong></p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:.35rem">💡 Wirksubstanz: <strong style="color:var(--cream)" id="wirk-${p.id}">${p.anker_geaendert ? 'wird passend zum neuen Hauptprodukt ermittelt' : p.wirksubstanz}</strong></p>
       <p class="card-teaser">${p.teaser}</p>
       <p style="font-size:12px;color:var(--muted)">⏰ ${p.cta_grund}</p>
       <p style="font-size:12px;color:var(--gold2);margin-top:.35rem">📅 Versand: ${p.versand_label||'wird geplant'}</p>
@@ -848,6 +856,34 @@ function renderProposals(){
       </div>`;
     c.appendChild(div);
   });
+}
+
+function escAttr(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function produktOptionen(selected, mitSets){
+  const ex=['messe','ebook','buch bundle'];
+  const list=products.filter(p=>{const t=p.title.toLowerCase();return p.variants?.[0] && !ex.some(x=>t.includes(x)) && (mitSets || !istSet(p.title));});
+  let html='';
+  if (selected && !list.some(p=>p.title===selected)) html+=`<option value="${escAttr(selected)}" selected>${escAttr(selected)}</option>`;
+  html+=list.map(p=>`<option value="${escAttr(p.title)}"${p.title===selected?' selected':''}>${escAttr(p.title)}${istSet(p.title)?' (Set)':''} · ${p.variants[0].price} €</option>`).join('');
+  return html;
+}
+function setWarnung(p){
+  if (!istSet(p.bundle_product)) return '';
+  const inhalt=getSetInhalt(p.bundle_product);
+  return inhalt.length && !inhalt.includes(p.anchor_product) ? '⚠️ Dieses Set enthält das Hauptprodukt nicht.' : '';
+}
+function setProdukt(id, rolle, title){
+  const p=proposals.find(x=>x.id===id); const sp=products.find(x=>x.title===title);
+  if(!p||!sp) return;
+  if(rolle==='anchor'){
+    if(p.anchor_product===sp.title) return;
+    p.anchor_product=sp.title; p.anchor_price=sp.variants[0].price; p.anchor_url=SHOP+sp.handle;
+    p.anker_geaendert=true; p.wirksubstanz='';
+    const w=document.getElementById(`wirk-${id}`); if(w) w.textContent='wird passend zum neuen Hauptprodukt ermittelt';
+  } else {
+    p.bundle_product=sp.title; p.bundle_price=sp.variants[0].price; p.bundle_url=SHOP+sp.handle;
+  }
+  const wa=document.getElementById(`warn-${id}`); if(wa) wa.textContent=setWarnung(p);
 }
 
 function acc(id){
@@ -971,7 +1007,7 @@ STIL: Dieser Newsletter kommt OHNE Kundengeschichte aus. Schreibe direkt, inform
     const prompt=`Schreibe einen Newsletter für Vierbeinerglück. Antworte AUSSCHLIESSLICH mit dem JSON-Objekt gemäß der definierten Struktur. KEIN Markdown, KEINE Codeblöcke, KEIN Text davor oder danach.
 ${nlWinkel ? `\nTHEMATISCHER WINKEL: "${nlWinkel[0]}" – ${nlWinkel[1]}` : ''}
 
-Headline: "${p.headline}"
+${p.anker_geaendert ? `Headline: Schreibe eine NEUE Headline passend zum Hauptprodukt \"${p.anchor_product}\" (Thema/Saison wie in diesem Vorschlag: \"${p.headline}\").` : `Headline: \"${p.headline}\"`}
 
 PRODUKT 1 (Anker):
 - Name: ${p.anchor_product}
@@ -981,8 +1017,7 @@ PRODUKT 2 (Bundle):
 - Name: ${p.bundle_product}
 - Preis: ${p.bundle_price} EUR (EXAKT so verwenden, keine anderen Preise!)${getSetInhalt(p.bundle_product).length ? `\n- Das ist ein SET. Inhalt: ${getSetInhalt(p.bundle_product).join(' + ')}. Erwähne in der Beschreibung von produkt2, was im Set enthalten ist.` : ''}
 
-Wirksubstanz: ${p.wirksubstanz}
-Teaser: ${p.teaser}
+${p.anker_geaendert ? 'Wirksubstanz: Nimm den Hauptwirkstoff von "'+p.anchor_product+'" aus dem Ratgeber-Wissen unten.' : 'Wirksubstanz: '+p.wirksubstanz+'\nTeaser: '+p.teaser}
 CTA: ${p.cta_grund}
 Saison: ${s.name}, KW ${kw}
 ${fb?'Feedback: '+fb:''}
@@ -1059,7 +1094,7 @@ STRIKTE REGELN:
 
       generatedNLs.push({
         id: p.id,
-        headline: p.headline,
+        headline: (p.anker_geaendert && nlJson?.headline) ? nlJson.headline : p.headline,
         nlJson: nlJson,
         anchor_url: utmAnchor,
         bundle_url: utmBundle,
